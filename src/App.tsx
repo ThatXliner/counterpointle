@@ -5,6 +5,7 @@ import { Home, shareDay } from './components/Home'
 import type { Species } from './music/exercise'
 import type { Level } from './music/generate'
 import { currentDay, prefetchDay } from './puzzles'
+import { shareText } from './share'
 import { loadSetting, saveSetting } from './storage'
 
 type Route = { species: Species; level: Level } | null
@@ -18,6 +19,7 @@ export function App() {
   const [day] = useState(currentDay)
   const [route, setRoute] = useState<Route>(parseRoute)
   const [help, setHelp] = useState(() => !loadSetting('seenHelp', false))
+  const [hard, setHard] = useState(() => loadSetting('hard', false))
   const [showFigures, setShowFigures] = useState(() => loadSetting('figures', true))
   const [sound, setSound] = useState(() => loadSetting('sound', true))
   const [toastMsg, setToastMsg] = useState<string | null>(null)
@@ -28,9 +30,10 @@ export function App() {
     return () => window.removeEventListener('hashchange', onHash)
   }, [])
   useEffect(() => {
-    const id = setTimeout(() => prefetchDay(day), 400)
+    const id = setTimeout(() => prefetchDay(day, hard), 400)
     return () => clearTimeout(id)
-  }, [day])
+  }, [day, hard])
+  useEffect(() => saveSetting('hard', hard), [hard])
   useEffect(() => saveSetting('figures', showFigures), [showFigures])
   useEffect(() => saveSetting('sound', sound), [sound])
   useEffect(() => {
@@ -49,13 +52,9 @@ export function App() {
     saveSetting('seenHelp', true)
   }
 
-  const share = async () => {
-    try {
-      await navigator.clipboard.writeText(shareDay(day))
-      setToastMsg('Copied to clipboard')
-    } catch {
-      setToastMsg('Could not copy. Your browser blocked the clipboard')
-    }
+  const share = async (text: string) => {
+    const msg = await shareText(text)
+    if (msg) setToastMsg(msg)
   }
 
   return (
@@ -65,13 +64,13 @@ export function App() {
           Counter<span>point</span>le
         </a>
         <div className="settings">
-          <button className={`toggle ${showFigures ? 'on' : ''}`} onClick={() => setShowFigures((v) => !v)} aria-pressed={showFigures} title="Show interval numbers">
+          <button className={`icon-btn ${showFigures ? 'on' : ''}`} onClick={() => setShowFigures((v) => !v)} aria-pressed={showFigures} title="Interval numbers under the staff">
             5·6
           </button>
-          <button className={`toggle ${sound ? 'on' : ''}`} onClick={() => setSound((v) => !v)} aria-pressed={sound} title="Sound when placing notes">
+          <button className={`icon-btn ${sound ? 'on' : ''}`} onClick={() => setSound((v) => !v)} aria-pressed={sound} title="Sound when placing notes">
             ♪
           </button>
-          <button className="toggle" onClick={() => setHelp(true)} title="How to play">
+          <button className="icon-btn on" onClick={() => setHelp(true)} title="How to play">
             ?
           </button>
         </div>
@@ -82,17 +81,19 @@ export function App() {
             day={day}
             species={route.species}
             level={route.level}
+            hard={hard}
             showFigures={showFigures}
             sound={sound}
             toast={setToastMsg}
+            share={share}
             onNavigate={navigate}
           />
         ) : (
-          <Home day={day} onOpen={navigate} onShare={share} onHelp={() => setHelp(true)} />
+          <Home day={day} hard={hard} onHard={setHard} onOpen={navigate} onShare={() => share(shareDay(day, hard))} />
         )}
       </main>
       <footer className="dim small">
-        Rules after Fux, <em>Gradus ad Parnassum</em> (1725) ·{' '}
+        Species I–II follow AP Music Theory voice leading; III–V follow Fux, <em>Gradus ad Parnassum</em> (1725).{' '}
         <a href="https://github.com/ThatXliner/counterpointle">Source</a>
       </footer>
       <Help open={help} onClose={closeHelp} />

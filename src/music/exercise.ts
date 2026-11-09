@@ -1,4 +1,4 @@
-import { degree, finalStep, raisesLeadingTone, type Mode, type Pitch } from './theory'
+import { degree, finalStep, keyAlter, letterOf, raisesLeadingTone, type Key, type Pitch } from './theory'
 
 export type Species = 1 | 2 | 3 | 4 | 5
 
@@ -13,7 +13,7 @@ export interface Slot {
 
 export interface Exercise {
   species: Species
-  mode: Mode
+  key: Key
   /** Counterpoint above the cantus firmus, or below it. */
   cpAbove: boolean
   /** Cantus firmus as diatonic steps, one whole note per bar. */
@@ -54,10 +54,15 @@ export interface Context {
 export const UPPER_RANGE: [number, number] = [25, 40]
 export const LOWER_RANGE: [number, number] = [16, 30]
 
-export function cantusTonic(mode: Mode, cpAbove: boolean): number {
-  const t = finalStep(mode, cpAbove ? 3 : 4)
-  // A low cantus on G or A sits an octave down so the counterpoint has room above it.
-  return cpAbove && t > 22 ? t - 7 : t
+export function cantusTonic(key: Key, cpAbove: boolean): number {
+  const t = finalStep(key, cpAbove ? 3 : 4)
+  // A low cantus on G, A or B sits an octave down so the counterpoint has room above it.
+  return cpAbove && t > 24 ? t - 7 : t
+}
+
+/** A step as the key signature spells it. */
+export function pitchIn(key: Key, step: number): Pitch {
+  return { step, alter: keyAlter(letterOf(step), key.sig) }
 }
 
 export function analyze(ex: Exercise): Context {
@@ -91,13 +96,14 @@ export function analyze(ex: Exercise): Context {
 
 /** Sounding pitch of a counterpoint note: sevenths begun in the penultimate bar are raised (musica ficta). */
 export function cpPitch(ctx: Context, i: number, step: number): Pitch {
-  const raised =
-    ctx.slots[i].bar === ctx.bars - 2 && degree(step, ctx.ex.mode) === 6 && raisesLeadingTone(ctx.ex.mode)
-  return { step, alter: raised ? 1 : 0 }
+  const { key } = ctx.ex
+  const raised = ctx.slots[i].bar === ctx.bars - 2 && degree(step, key) === 6 && raisesLeadingTone(key.mode)
+  const p = pitchIn(key, step)
+  return raised ? { step, alter: p.alter + 1 } : p
 }
 
 export function cfPitch(ctx: Context, bar: number): Pitch {
-  return { step: ctx.ex.cf[bar], alter: 0 }
+  return pitchIn(ctx.ex.key, ctx.ex.cf[bar])
 }
 
 type Rand = () => number

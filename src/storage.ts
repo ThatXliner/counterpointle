@@ -17,7 +17,7 @@ export interface GameState {
   status: 'playing' | 'won' | 'lost'
 }
 
-const gameKey = (puzzleKey: string) => `cptl:game:${puzzleKey}`
+const gameKey = (puzzleKey: string) => `cptl:v2:game:${puzzleKey}`
 
 export function loadGame(puzzleKey: string): GameState | null {
   try {

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent, type ReactElement } from 'react'
 import { BAR, cfPitch, cpPitch, type Context } from '../music/exercise'
-import { intervalBetween } from '../music/theory'
+import { intervalBetween, keyAlter, letterOf } from '../music/theory'
 import type { Mark } from '../storage'
 
 type StaffName = 'treble' | 'bass'
@@ -13,6 +13,10 @@ const HEIGHT = 236
 const FIGURE_Y = 224
 const PAD = 20
 const CLEF_W = 54
+const SIG_W = 9 // px per sharp or flat in the key signature
+/** Where each sharp and flat of a key signature sits on the treble staff; the bass staff is two octaves lower. */
+const SIG_STEPS = { sharp: [38, 35, 39, 36, 33, 37, 34], flat: [34, 37, 33, 36, 32, 35, 31] }
+const GLYPH: Record<number, string> = { [-1]: '♭', 0: '♮', 1: '♯' }
 /** Preferred zoom; scores shrink toward 1 to fit their card before they scroll. */
 const MAX_SCALE = 1.3
 
@@ -57,7 +61,8 @@ export interface Layout {
 export function layoutFor(ctx: Context, segments: Segment[]): Layout {
   const barW: number[] = []
   const barX: number[] = []
-  let cursor = CLEF_W
+  const sig = Math.abs(ctx.ex.key.sig)
+  let cursor = CLEF_W + (sig ? sig * SIG_W + 6 : 0)
   for (let b = 0; b < ctx.bars; b++) {
     const durs = segments.filter((g) => Math.floor(g.time / BAR) === b).map((g) => g.dur)
     if (b === 0 && ctx.slots[0].start > 0) durs.push(ctx.slots[0].start)
@@ -126,6 +131,20 @@ export interface StaffProps {
 
 export function Staff({ ctx, notes, given, marks, selected, editable, showFigures, highlight, playTime, onPick }: StaffProps) {
   const segments = useMemo(() => segmentsOf(ctx), [ctx])
+  // An accidental shows when a note differs from the key signature, or from an earlier note in the same bar.
+  const accidentals = useMemo(() => {
+    const out = new Map<number, string>()
+    let bar = -1
+    let current = new Map<number, number>()
+    ctx.slots.forEach((s, i) => {
+      if (notes[i] == null) return
+      if (s.bar !== bar) [bar, current] = [s.bar, new Map()]
+      const { step, alter } = cpPitch(ctx, i, notes[i]!)
+      if (alter !== (current.get(step) ?? keyAlter(letterOf(step), ctx.ex.key.sig))) out.set(i, GLYPH[alter])
+      current.set(step, alter)
+    })
+    return out
+  }, [ctx, notes])
   const layout = useMemo(() => layoutFor(ctx, segments), [ctx, segments])
   const svgRef = useRef<SVGSVGElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -239,6 +258,15 @@ export function Staff({ ctx, notes, given, marks, selected, editable, showFigure
         <line className="barline" x1={4} x2={4} y1={TOP.treble} y2={TOP.bass + 40} />
         <text className="clef" x={10} y={yOf(32, 'treble') + 10}>𝄞</text>
         <text className="clef" x={10} y={yOf(24, 'bass') + 27}>𝄢</text>
+        {(['treble', 'bass'] as const).flatMap((staff) => {
+          const { sig } = ctx.ex.key
+          const steps = (sig > 0 ? SIG_STEPS.sharp : SIG_STEPS.flat).slice(0, Math.abs(sig))
+          return steps.map((step, k) => (
+            <text key={`${staff}sig${k}`} className="accidental keysig" x={CLEF_W - 6 + k * SIG_W} y={yOf(staff === 'treble' ? step : step - 14, staff) + 5}>
+              {sig > 0 ? '♯' : '♭'}
+            </text>
+          ))
+        })}
         {layout.barX.map((bx, b) => (
           <text key={`n${b}`} className="bar-number" x={bx + 3} y={TOP.treble - 26}>
             {b + 1}
@@ -276,7 +304,6 @@ export function Staff({ ctx, notes, given, marks, selected, editable, showFigure
             const isSel = g.slot === selected
             return <Head key={`g${k}`} x={cx} y={mid} dur={g.dur} stem={null} dashed className={`ghost${isSel ? ' active' : ''}`} />
           }
-          const pitch = cpPitch(ctx, g.slot, step)
           const y = yOf(step, cpStaff)
           const stem = beamed.has(g.slot) ? null : stemFor(step, cpStaff, g.dur)
           const second = g.time !== ctx.slots[g.slot].start
@@ -284,9 +311,9 @@ export function Staff({ ctx, notes, given, marks, selected, editable, showFigure
           return (
             <g key={`n${k}`}>
               {ledgerLines(cx, step, cpStaff, `n${k}`)}
-              {pitch.alter > 0 && !second && (
+              {accidentals.has(g.slot) && !second && (
                 <text className={`accidental ${noteClass(g.slot)}`} x={cx - 17} y={y + 5}>
-                  ♯
+                  {accidentals.get(g.slot)}
                 </text>
               )}
               <Head x={cx} y={y} dur={g.dur} stem={stem} className={noteClass(g.slot)} />

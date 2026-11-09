@@ -6,9 +6,10 @@ export interface PuzzleRequest {
   day: string
   species: Species
   level: Level
+  hard: boolean
 }
 
 self.onmessage = (e: MessageEvent<PuzzleRequest>) => {
-  const { id, day, species, level } = e.data
-  self.postMessage({ id, puzzle: makePuzzle(day, species, level) })
+  const { id, day, species, level, hard } = e.data
+  self.postMessage({ id, puzzle: makePuzzle(day, species, level, hard) })
 }

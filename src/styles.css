@@ -94,8 +94,7 @@ a {
   align-items: center;
   justify-content: space-between;
   padding: 18px 0 14px;
-  border-bottom: 1px solid var(--rule);
-  margin-bottom: 28px;
+  margin-bottom: 20px;
 }
 
 .wordmark {
@@ -113,28 +112,29 @@ a {
 
 .settings {
   display: flex;
-  gap: 6px;
+  gap: 2px;
 }
 
-.toggle {
-  min-width: 40px;
-  height: 40px;
-  padding: 0 10px;
+.icon-btn {
+  min-width: 38px;
+  height: 38px;
+  padding: 0 8px;
   border-radius: 999px;
-  border: 1px solid var(--rule);
+  border: none;
   background: transparent;
   color: var(--muted);
+  opacity: 0.55;
   font-family: var(--sans);
   font-size: 14px;
-  transition: background-color 0.15s, color 0.15s, border-color 0.15s;
+  transition: background-color 0.15s, opacity 0.15s;
 }
 
-.toggle.on {
+.icon-btn.on {
   color: var(--ink);
-  border-color: var(--ink);
+  opacity: 1;
 }
 
-.toggle:hover {
+.icon-btn:hover {
   background: var(--card);
 }
 
@@ -195,7 +195,7 @@ a {
 /* --- Home ------------------------------------------------------------------------------------ */
 
 .intro {
-  margin-bottom: 30px;
+  margin-bottom: 22px;
 }
 
 .eyebrow {
@@ -208,9 +208,42 @@ a {
 }
 
 .lede {
-  font-size: 21px;
-  max-width: 40em;
-  margin: 0 0 18px;
+  font-size: 20px;
+  max-width: 36em;
+  margin: 0;
+}
+
+.home-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.segmented {
+  display: inline-flex;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--rule);
+}
+
+.segmented button {
+  border: none;
+  background: transparent;
+  border-radius: 999px;
+  padding: 7px 14px;
+  font-family: var(--sans);
+  font-size: 14px;
+  color: var(--muted);
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.segmented button.on {
+  background: var(--card);
+  color: var(--ink);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
 }
 
 .species-list {
@@ -225,35 +258,21 @@ a {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 14px 0;
+  padding: 12px 0;
   border-bottom: 1px solid var(--rule);
 }
 
 .species-label {
   display: flex;
-  align-items: center;
-  gap: 16px;
+  align-items: baseline;
+  gap: 14px;
   min-width: 0;
-}
-
-.species-label > span:last-child {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.25;
-}
-
-.species-label strong {
-  font-weight: 500;
   font-size: 20px;
-}
-
-.species-label .dim {
-  font-size: 15px;
 }
 
 .numeral {
   width: 34px;
-  font-size: 26px;
+  font-size: 22px;
   font-style: italic;
   color: var(--gold);
   text-align: center;
@@ -268,13 +287,14 @@ a {
 
 .level {
   position: relative;
-  width: 52px;
-  height: 52px;
+  width: 48px;
+  height: 48px;
   border-radius: 12px;
   border: 1px solid var(--rule);
   background: var(--card);
   display: grid;
   place-items: center;
+  font-size: 19px;
   transition: transform 0.12s, border-color 0.15s;
 }
 
@@ -284,10 +304,6 @@ a {
 
 .level:active {
   transform: scale(0.95);
-}
-
-.level .lv {
-  font-size: 20px;
 }
 
 .level .tag {
@@ -442,8 +458,12 @@ a {
 }
 
 .staff .accidental {
-  font-family: var(--sans);
-  font-size: 15px;
+  font-family: var(--music);
+  font-size: 19px;
+}
+
+.staff .keysig {
+  fill: var(--ink);
 }
 
 .staff .ghost {
@@ -537,6 +557,12 @@ a {
   font-size: 14px;
   font-family: var(--sans);
   margin: 4px 0 18px;
+}
+
+@media (hover: none) {
+  .hint .keys {
+    display: none;
+  }
 }
 
 .result {
@@ -790,8 +816,7 @@ dialog.help::backdrop {
 
 footer {
   margin-top: 40px;
-  padding-top: 16px;
-  border-top: 1px solid var(--rule);
+  font-size: 14px;
 }
 
 @media (max-width: 640px) {
@@ -806,7 +831,16 @@ footer {
   .species-row {
     flex-direction: column;
     align-items: stretch;
-    gap: 10px;
+    gap: 6px;
+    padding: 10px 0;
+  }
+
+  .segmented .dim {
+    display: none;
+  }
+
+  .level {
+    height: 44px;
   }
 
   .levels {

@@ -2,17 +2,22 @@ export type Mode = 'ionian' | 'dorian' | 'mixolydian' | 'aeolian'
 
 export const MODES: readonly Mode[] = ['ionian', 'dorian', 'mixolydian', 'aeolian']
 
-/** Letter index (C = 0 … B = 6) of each mode's final. All modes are on the white keys, as in Fux. */
+/** Letter index (C = 0 … B = 6) of each mode's final with no key signature. */
 const FINAL_LETTER: Record<Mode, number> = { ionian: 0, dorian: 1, mixolydian: 4, aeolian: 5 }
 
-export const MODE_LABEL: Record<Mode, string> = {
-  ionian: 'C Ionian',
-  dorian: 'D Dorian',
-  mixolydian: 'G Mixolydian',
-  aeolian: 'A Aeolian',
+const MODE_LABEL: Record<Mode, string> = { ionian: 'major', dorian: 'Dorian', mixolydian: 'Mixolydian', aeolian: 'minor' }
+
+/** A mode transposed by a key signature: `sig` counts sharps (positive) or flats (negative). */
+export interface Key {
+  mode: Mode
+  sig: number
 }
 
+export const C_MAJOR: Key = { mode: 'ionian', sig: 0 }
+
 const LETTER_NAMES = 'CDEFGAB'
+const SHARP_ORDER = [3, 0, 4, 1, 5, 2, 6] // F C G D A E B
+const FLAT_ORDER = [6, 2, 5, 1, 4, 0, 3] // B E A D G C F
 const LETTER_SEMITONES = [0, 2, 4, 5, 7, 9, 11]
 
 /** A pitch as a diatonic step (one per letter name, C4 = 28) plus a chromatic alteration. */
@@ -34,13 +39,34 @@ export function pitchName(p: Pitch): string {
   return `${LETTER_NAMES[letterOf(p.step)]}${accidental}${octaveOf(p.step)}`
 }
 
-/** Scale degree within the mode: 0 is the final, 6 the seventh. */
-export function degree(step: number, mode: Mode): number {
-  return mod(step - FINAL_LETTER[mode], 7)
+/** The alteration the key signature gives a letter. */
+export function keyAlter(letter: number, sig: number): number {
+  if (sig > 0) return SHARP_ORDER.indexOf(letter) < sig ? 1 : 0
+  if (sig < 0) return FLAT_ORDER.indexOf(letter) < -sig ? -1 : 0
+  return 0
 }
 
-export function finalStep(mode: Mode, octave: number): number {
-  return octave * 7 + FINAL_LETTER[mode]
+/** Each sharp moves the major key up a fifth (four steps); each flat down one. */
+const finalLetter = (key: Key) => mod(4 * key.sig + FINAL_LETTER[key.mode], 7)
+
+/** Scale degree within the mode: 0 is the final, 6 the seventh. */
+export function degree(step: number, key: Key): number {
+  return mod(step - finalLetter(key), 7)
+}
+
+export function finalStep(key: Key, octave: number): number {
+  return octave * 7 + finalLetter(key)
+}
+
+export function keyName(key: Key): string {
+  const letter = finalLetter(key)
+  return `${pitchName({ step: letter, alter: keyAlter(letter, key.sig) }).slice(0, -1)} ${MODE_LABEL[key.mode]}`
+}
+
+/** A note a half step below the final, which wants to rise to it. */
+export function isLeadingTone(p: Pitch, key: Key): boolean {
+  const final = finalLetter(key)
+  return mod(midi(p) - midi({ step: final, alter: keyAlter(final, key.sig) }), 12) === 11
 }
 
 /** Every mode but Ionian has a whole step below the final, so its cadence needs a raised seventh. */
@@ -108,6 +134,31 @@ export function melodicProblem(a: Pitch, b: Pitch): string | null {
     default:
       return 'more than an octave'
   }
+}
+
+/**
+ * The AP Music Theory melodic rules (CED PIT-4.A.3 and PIT-3.D.2). Upper voices move by seconds, thirds,
+ * perfect fourths and fifths. A bass may also leap a sixth or an octave, or fall a diminished fifth.
+ */
+export function apMelodicProblem(a: Pitch, b: Pitch, bass: boolean): string | null {
+  const { size, semitones } = intervalBetween(a, b)
+  if (size > 7) return 'more than an octave'
+  if (size === 6) return 'a seventh'
+  if (size === 4 && semitones === 6) return bass && b.step < a.step ? null : 'a diminished fifth'
+  if (size === 3 && semitones === 6) return 'a tritone'
+  const allowed = [[0], [1, 2], [3, 4], [5], [7], [8, 9], [], [12]][size]
+  if (!allowed.includes(semitones)) return size === 0 ? 'a chromatic half step' : `an augmented or diminished ${intervalName(size)}`
+  if (size <= 4 || bass) return null
+  return `${size === 7 ? 'an octave' : 'a sixth'} (upper voices leap at most a fifth)`
+}
+
+/** Whether every pitch belongs to one major or minor triad. */
+export function inOneTriad(pitches: Pitch[]): boolean {
+  const classes = new Set(pitches.map((p) => mod(midi(p), 12)))
+  return pitches.some((root) => {
+    const r = mod(midi(root), 12)
+    return [3, 4].some((third) => [...classes].every((c) => [0, third, 7].includes(mod(c - r, 12))))
+  })
 }
 
 /** Leaps of a fifth or more must be followed by motion the other way. */

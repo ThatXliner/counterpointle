@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { play, type Tone } from '../audio'
-import { GENERAL_RULES, ROMAN, SPECIES_INFO } from '../content'
+import { GENERAL_RULES, ROMAN, RULEBOOK_NAME, SPECIES_INFO } from '../content'
 import { analyze, BAR, cfPitch, cpPitch, type Context, type Species } from '../music/exercise'
 import type { Level, Puzzle } from '../music/generate'
-import { validate, type Violation } from '../music/rules'
-import { midi, MODE_LABEL, pitchName } from '../music/theory'
+import { rulebook, validate, type Violation } from '../music/rules'
+import { keyName, midi, pitchName } from '../music/theory'
 import { dayNumber, loadPuzzle, MAX_CHECKS } from '../puzzles'
 import { loadGame, saveGame, type Attempt, type GameState, type Mark } from '../storage'
 import { Staff } from './Staff'
@@ -12,28 +12,34 @@ import { Staff } from './Staff'
 const EIGHTH_SECONDS = 0.17
 const SQUARE: Record<Mark, string> = { ok: '🟩', melodic: '🟨', harmonic: '🟥' }
 const RANK: Record<Mark, number> = { ok: 0, melodic: 1, harmonic: 2 }
+const PRAISE = {
+  ap: ['Textbook.', 'Clean voice leading.', 'Bellissimo.', 'That’s a 5 on the free response.'],
+  fux: ['Gradus ad Parnassum!', 'Fux would approve.', 'Bellissimo.', 'Clean voice leading.'],
+}
 
 interface GameProps {
   day: string
   species: Species
   level: Level
+  hard: boolean
   showFigures: boolean
   sound: boolean
   toast: (msg: string) => void
+  share: (text: string) => void
   onNavigate: (species: Species, level: Level | null) => void
 }
 
 export function Game(props: GameProps) {
-  const { day, species, level } = props
+  const { day, species, level, hard } = props
   const [puzzle, setPuzzle] = useState<Puzzle | null>(null)
   useEffect(() => {
     let live = true
     setPuzzle(null)
-    void loadPuzzle(day, species, level).then((p) => live && setPuzzle(p))
+    void loadPuzzle(day, species, level, hard).then((p) => live && setPuzzle(p))
     return () => {
       live = false
     }
-  }, [day, species, level])
+  }, [day, species, level, hard])
   if (!puzzle) return <p className="composing">Composing a cantus firmus…</p>
   return <Board key={puzzle.key} puzzle={puzzle} {...props} />
 }
@@ -52,7 +58,7 @@ function tonesFor(ctx: Context, notes: readonly (number | null)[]): Tone[] {
   return [...cf, ...cp]
 }
 
-function Board({ puzzle, showFigures, sound, toast, onNavigate }: GameProps & { puzzle: Puzzle }) {
+function Board({ puzzle, hard, showFigures, sound, toast, share, onNavigate }: GameProps & { puzzle: Puzzle }) {
   const ctx = useMemo(() => analyze(puzzle.exercise), [puzzle])
   const { given, species, level } = puzzle
   const blanks = useMemo(() => given.flatMap((g, i) => (g === null ? [i] : [])), [given])
@@ -137,7 +143,7 @@ function Board({ puzzle, showFigures, sound, toast, onNavigate }: GameProps & { 
     const status = violations.length === 0 ? 'won' : attempts.length >= MAX_CHECKS ? 'lost' : 'playing'
     setState({ ...state, marks, attempts, status })
     if (status !== 'playing') setSelected(null)
-    if (status === 'won') toast(['Gradus ad Parnassum!', 'Fux would approve.', 'Bellissimo.', 'Clean voice leading.'][attempts.length % 4])
+    if (status === 'won') toast(PRAISE[rulebook(species)][attempts.length % 4])
   }
 
   const togglePlay = () => {
@@ -195,19 +201,15 @@ function Board({ puzzle, showFigures, sound, toast, onNavigate }: GameProps & { 
     return () => window.removeEventListener('keydown', listener)
   }, [])
 
-  const share = async () => {
+  const shareResult = () => {
     const result = state.status === 'won' ? `${state.attempts.length}/${MAX_CHECKS}` : `X/${MAX_CHECKS}`
+    const title = [`Counterpointle #${dayNumber(puzzle.key.split('/')[0])}`, hard && 'Hard', `Species ${ROMAN[species]}`, `Level ${level}`, result]
     const text = [
-      `Counterpointle #${dayNumber(puzzle.key.split('/')[0])} · Species ${ROMAN[species]} · Level ${level} · ${result}`,
+      title.filter(Boolean).join(' · '),
       ...state.attempts.map((a) => a.bars.map((m) => SQUARE[m]).join('')),
       location.origin,
     ].join('\n')
-    try {
-      await navigator.clipboard.writeText(text)
-      toast('Copied to clipboard')
-    } catch {
-      toast('Could not copy. Your browser blocked the clipboard')
-    }
+    share(text)
   }
 
   const info = SPECIES_INFO[species]
@@ -225,7 +227,7 @@ function Board({ puzzle, showFigures, sound, toast, onNavigate }: GameProps & { 
             Species {ROMAN[species]} <span className="dim">·</span> Level {level}
           </h2>
           <p className="dim">
-            {info.tagline} · {MODE_LABEL[ctx.ex.mode]} · counterpoint {ctx.ex.cpAbove ? 'above' : 'below'} the cantus
+            {info.tagline} · {keyName(ctx.ex.key)} · line {ctx.ex.cpAbove ? 'above' : 'below'} the cantus
           </p>
         </div>
       </header>
@@ -273,7 +275,8 @@ function Board({ puzzle, showFigures, sound, toast, onNavigate }: GameProps & { 
       </div>
       {editable && (
         <p className="hint dim">
-          Tap a blank on the staff to place a note, then drag or use ▲ ▼. Keys: ← → choose, ↑ ↓ move, Enter checks, Space plays.
+          Tap a blank to place a note, then drag it up or down.
+          <span className="keys"> Keys: ← → choose, ↑ ↓ move, Enter checks, Space plays.</span>
         </p>
       )}
 
@@ -286,8 +289,8 @@ function Board({ puzzle, showFigures, sound, toast, onNavigate }: GameProps & { 
               : 'There is more than one right answer. Want to see one?'}
           </p>
           <div className="row">
-            <button className="primary" onClick={share}>
-              Share
+            <button className="primary" onClick={shareResult}>
+              Share result
             </button>
             {state.status === 'lost' && (
               <button className="ghost-btn" onClick={() => setReveal((r) => !r)}>
@@ -307,45 +310,43 @@ function Board({ puzzle, showFigures, sound, toast, onNavigate }: GameProps & { 
         </div>
       )}
 
-      <div className="feedback">
-        <div className="tries" aria-label="Checks used">
-          {Array.from({ length: MAX_CHECKS }, (_, k) => {
-            const a = state.attempts[k]
-            const width = latest?.bars.length ?? new Set(blanks.map((i) => ctx.slots[i].bar)).size
-            return (
+      {latest && (
+        <div className="feedback">
+          <div className="tries" aria-label="Your checks">
+            {state.attempts.map((a, k) => (
               <div className="try-row" key={k}>
-                {Array.from({ length: width }, (_, j) => (
-                  <span key={j} className={`sq ${a ? `mark-${a.bars[j]}` : ''}`} />
+                {a.bars.map((m, j) => (
+                  <span key={j} className={`sq mark-${m}`} />
                 ))}
               </div>
-            )
-          })}
-        </div>
-        {latest && latest.violations.length > 0 && (
-          <div className="violations">
-            <h4>{reveal ? 'Your last check' : 'Last check'}</h4>
-            <ul>
-              {latest.violations.map((v, k) => (
-                <li
-                  key={k}
-                  className={`v-${v.kind}`}
-                  onMouseEnter={() => setHighlight(v.slots)}
-                  onMouseLeave={() => setHighlight([])}
-                  onClick={() => {
-                    setHighlight(v.slots)
-                    const target = v.slots.find((i) => given[i] === null)
-                    if (editable && target !== undefined) setSelected(target)
-                  }}
-                >
-                  <span className="dot" />
-                  {v.bar !== null && <span className="bar">Bar {v.bar}</span>}
-                  {v.message}
-                </li>
-              ))}
-            </ul>
+            ))}
           </div>
-        )}
-      </div>
+          {latest.violations.length > 0 && (
+            <div className="violations">
+              <h4>{reveal ? 'Your last check' : 'Last check'}</h4>
+              <ul>
+                {latest.violations.map((v, k) => (
+                  <li
+                    key={k}
+                    className={`v-${v.kind}`}
+                    onMouseEnter={() => setHighlight(v.slots)}
+                    onMouseLeave={() => setHighlight([])}
+                    onClick={() => {
+                      setHighlight(v.slots)
+                      const target = v.slots.find((i) => given[i] === null)
+                      if (editable && target !== undefined) setSelected(target)
+                    }}
+                  >
+                    <span className="dot" />
+                    {v.bar !== null && <span className="bar">Bar {v.bar}</span>}
+                    {v.message}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
 
       <details className="card rules">
         <summary>
@@ -358,10 +359,11 @@ function Board({ puzzle, showFigures, sound, toast, onNavigate }: GameProps & { 
         </ul>
         <h4>Always</h4>
         <ul>
-          {GENERAL_RULES.map((r) => (
+          {GENERAL_RULES[rulebook(species)].map((r) => (
             <li key={r}>{r}</li>
           ))}
         </ul>
+        <p className="dim small">Following {RULEBOOK_NAME[rulebook(species)]}.</p>
       </details>
     </section>
   )

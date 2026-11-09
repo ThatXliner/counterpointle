@@ -1,11 +1,16 @@
-import { cfPitch, cpPitch, type Context } from './exercise'
+import { cfPitch, cpPitch, type Context, type Species } from './exercise'
 import {
+  apMelodicProblem,
   badLeapChain,
   degree,
+  inOneTriad,
   intervalBetween,
   intervalName,
+  isLeadingTone,
+  letterOf,
   melodicProblem,
   midi,
+  pitchName,
   unrecoveredLeap,
   type Interval,
 } from './theory'
@@ -17,11 +22,16 @@ export type RuleId =
   | 'dissonance'
   | 'suspension'
   | 'parallels'
+  | 'unequal-fifths'
   | 'hidden'
   | 'unison'
   | 'crossing'
+  | 'overlap'
   | 'spacing'
   | 'thirds-sixths'
+  | 'doubling'
+  | 'cross-relation'
+  | 'leading-tone'
   | 'repeat'
   | 'interval'
   | 'leap'
@@ -32,7 +42,14 @@ export type RuleId =
 /** Harmonic rules concern the counterpoint against the cantus; melodic ones the shape of its line. */
 export type RuleKind = 'harmonic' | 'melodic'
 
-const MELODIC: ReadonlySet<RuleId> = new Set(['repeat', 'interval', 'leap', 'leaps', 'range', 'eighths'])
+const MELODIC: ReadonlySet<RuleId> = new Set(['leading-tone', 'repeat', 'interval', 'leap', 'leaps', 'range', 'eighths'])
+
+/**
+ * Species I and II follow the voice-leading conventions of the AP Music Theory Course and Exam Description,
+ * since that is where most students first meet two-voice writing. Species III–V follow Fux.
+ */
+export type Rulebook = 'ap' | 'fux'
+export const rulebook = (species: Species): Rulebook => (species <= 2 ? 'ap' : 'fux')
 
 export interface Violation {
   rule: RuleId
@@ -52,6 +69,7 @@ const all = (...xs: Tri[]): Tri => (xs.includes(false) ? false : xs.includes(nul
 const any = (...xs: Tri[]): Tri => (xs.includes(true) ? true : xs.includes(null) ? null : false)
 
 const plural = (iv: Interval) => (iv.perfect === 'fifth' ? 'fifths' : iv.size === 0 ? 'unisons' : 'octaves')
+const isTritone = (iv: Interval) => (iv.simple === 3 || iv.simple === 4) && iv.semitones % 12 === 6
 
 /**
  * Every rule broken by the counterpoint `steps` (null = not yet written).
@@ -59,6 +77,7 @@ const plural = (iv: Interval) => (iv.perfect === 'fifth' ? 'fifths' : iv.size ==
  */
 export function validate(ctx: Context, steps: Steps): Violation[] {
   const { ex, slots, moments, bars } = ctx
+  const ap = rulebook(ex.species) === 'ap'
   const out: Violation[] = []
   const seen = new Set<string>()
   const last = slots.length - 1
@@ -81,20 +100,29 @@ export function validate(ctx: Context, steps: Steps): Violation[] {
   }
   if (known(last) && against(last, bars - 1).perfect !== 'octave') add('final', 'End on a unison or octave', [last])
   if (known(last - 1)) {
-    if (degree(steps[last - 1]!, ex.mode) !== 6)
+    if (degree(steps[last - 1]!, ex.key) !== 6)
       add('cadence', 'The second-to-last note must be the leading tone', [last - 1])
     else if (known(last) && steps[last]! - steps[last - 1]! !== 1)
       add('cadence', 'The leading tone must rise by step to the final', [last - 1, last])
   }
 
-  // --- Voice crossing and spacing ---------------------------------------------------------------
+  // --- Voice crossing, overlap and spacing ------------------------------------------------------
+  const below = (a: number, b: number) => (ex.cpAbove ? a < b : a > b)
   for (const m of moments) {
     if (!known(m.slot)) continue
     const cp = steps[m.slot]!
     const cf = ex.cf[m.bar]
-    if (ex.cpAbove ? cp < cf : cp > cf)
+    if (below(cp, cf))
       add('crossing', ex.cpAbove ? 'The counterpoint crosses below the cantus' : 'The counterpoint crosses above the cantus', [m.slot], m.bar)
-    if (Math.abs(cp - cf) > 11) add('spacing', 'Voices more than a twelfth apart', [m.slot], m.bar)
+    if (!ap && Math.abs(cp - cf) > 11) add('spacing', 'Voices more than a twelfth apart', [m.slot], m.bar)
+  }
+  if (ap) {
+    for (let b = 1; b < bars; b++) {
+      const i = moments[ctx.downbeats[b]].slot
+      if (!known(i) || !known(i - 1)) continue
+      if (below(steps[i]!, ex.cf[b - 1]) || below(steps[i - 1]!, ex.cf[b]))
+        add('overlap', "Overlapping voices: don't move past the other voice's previous note", [i - 1, i], b)
+    }
   }
 
   // --- Dissonance treatment ---------------------------------------------------------------------
@@ -107,11 +135,11 @@ export function validate(ctx: Context, steps: Steps): Violation[] {
     const isStep = (d: number | null): Tri => (d === null ? null : Math.abs(d) === 1)
     const sameWay: Tri = inn === null || out === null ? null : Math.sign(inn) === Math.sign(out)
     const passing = all(isStep(inn), isStep(out), sameWay)
-    if (!florid || s.dur > 2) return passing
+    if (!ap && !(florid && s.dur <= 2)) return passing
     const neighbor = all(isStep(inn), isStep(out), sameWay === null ? null : !sameWay)
     // Nota cambiata: step down onto the dissonance, leap down a third, then step back up.
     let cambiata: Tri = false
-    if (s.dur === 2 && i + 2 <= last) {
+    if (florid && s.dur === 2 && i + 2 <= last) {
       const out2 = known(i + 1) && known(i + 2) ? steps[i + 2]! - steps[i + 1]! : null
       cambiata = all(inn === null ? null : inn === -1, out === null ? null : out === -2, out2 === null ? null : out2 === 1)
     }
@@ -124,8 +152,9 @@ export function validate(ctx: Context, steps: Steps): Violation[] {
     if (s.offset === 0) add('dissonance', 'Dissonance on a downbeat', [i])
     else if (s.tiesOver) add('dissonance', 'A note tied over the barline must begin as a consonance', [i])
     else if (treatment(i) === false) {
-      const hint =
-        !florid || s.dur > 2
+      const hint = ap
+        ? 'A dissonant weak beat must be a passing or neighbor tone'
+        : !florid || s.dur > 2
           ? 'A dissonant weak beat must be a passing tone'
           : 'Dissonance must be a passing tone, neighbor tone or cambiata'
       add('dissonance', hint, [i - 1, i, i + 1].filter((j) => j >= 0 && j <= last))
@@ -149,14 +178,16 @@ export function validate(ctx: Context, steps: Steps): Violation[] {
   }
 
   // --- Unisons in mid-phrase --------------------------------------------------------------------
-  for (const k of ctx.downbeats) {
-    const m = moments[k]
-    if (m.bar === 0 || m.bar === bars - 1 || !known(m.slot)) continue
-    const iv = against(m.slot, m.bar)
-    if (iv.size === 0 && iv.perfect) add('unison', 'Unisons belong only at the beginning and end', [m.slot], m.bar)
+  if (!ap) {
+    for (const k of ctx.downbeats) {
+      const m = moments[k]
+      if (m.bar === 0 || m.bar === bars - 1 || !known(m.slot)) continue
+      const iv = against(m.slot, m.bar)
+      if (iv.size === 0 && iv.perfect) add('unison', 'Unisons belong only at the beginning and end', [m.slot], m.bar)
+    }
   }
 
-  // --- Parallel and hidden perfect consonances --------------------------------------------------
+  // --- Parallel, unequal and hidden fifths and octaves ------------------------------------------
   for (let k = 1; k < moments.length; k++) {
     const cur = moments[k]
     const prev = moments[k - 1]
@@ -168,11 +199,16 @@ export function validate(ctx: Context, steps: Steps): Violation[] {
     if (cpMove === 0) continue
     const before = against(prev.slot, prev.bar)
     const ids = [prev.slot, cur.slot]
+    const similar = Math.sign(cpMove) === Math.sign(cfMove)
     if (before.perfect === now.perfect) {
-      const similar = Math.sign(cpMove) === Math.sign(cfMove)
       add('parallels', similar ? `Parallel ${plural(now)}` : `Consecutive ${plural(now)} by contrary motion`, ids, cur.bar)
-    } else if (Math.sign(cpMove) === Math.sign(cfMove)) {
-      add('hidden', `Hidden ${now.perfect}: don't approach a perfect interval by similar motion`, ids, cur.bar)
+    } else if (ap && now.perfect === 'fifth' && before.simple === 4 && before.semitones % 12 === 6) {
+      add('unequal-fifths', 'Unequal fifths: a diminished fifth may not move to a perfect fifth', ids, cur.bar)
+    } else if (similar) {
+      const upperLeaps = Math.abs(ex.cpAbove ? steps[cur.slot]! - steps[prev.slot]! : cfMove) > 1
+      if (!ap) add('hidden', `Hidden ${now.perfect}: don't approach a perfect interval by similar motion`, ids, cur.bar)
+      else if (upperLeaps)
+        add('hidden', `Hidden ${now.perfect}: moving into it in similar motion, the upper voice must move by step`, ids, cur.bar)
     }
   }
   if (ex.species > 1) {
@@ -194,7 +230,7 @@ export function validate(ctx: Context, steps: Steps): Violation[] {
       if (now.perfect && before.perfect === now.perfect) add('parallels', `${cap(plural(now))} on consecutive upbeats`, [i - 1, i], c.bar)
     }
   }
-  if (ex.species === 1) {
+  if (ex.species <= 2) {
     let run = 0
     let prevSimple = -1
     for (let i = 0; i <= last; i++) {
@@ -203,7 +239,26 @@ export function validate(ctx: Context, steps: Steps): Violation[] {
       run = simple >= 0 && simple === prevSimple ? run + 1 : 1
       prevSimple = simple
       if (simple >= 0 && run > 3)
-        add('thirds-sixths', `More than three parallel ${simple === 2 ? 'thirds' : 'sixths'} in a row`, [i - 3, i - 2, i - 1, i])
+        add('thirds-sixths', `More than three ${simple === 2 ? 'thirds' : 'sixths'} in a row`, [i - 3, i - 2, i - 1, i])
+    }
+  }
+
+  // --- Tendency tones and chromatic notes -------------------------------------------------------
+  if (ap) {
+    for (let i = 0; i <= last; i++) {
+      if (!known(i)) continue
+      const p = pitch(i)
+      const s = slots[i]
+      if (isLeadingTone(p, ex.key) && against(i, s.bar).perfect === 'octave')
+        add('doubling', "Don't double the leading tone", [i])
+      if (s.offset === 0 && s.bar > 0) {
+        const cf = cfPitch(ctx, s.bar - 1)
+        if (letterOf(cf.step) === letterOf(p.step) && cf.alter !== p.alter)
+          add('cross-relation', `Cross relation: ${pitchName(p).slice(0, -1)} right after ${pitchName(cf).slice(0, -1)} in the cantus`, [i])
+      }
+      // The cadence rule already covers the last leading tone.
+      if (i < last - 1 && known(i + 1) && isLeadingTone(p, ex.key) && steps[i + 1] !== steps[i] && steps[i + 1]! - steps[i]! !== 1)
+        add('leading-tone', 'The leading tone must rise by step to the tonic', [i, i + 1])
     }
   }
 
@@ -211,16 +266,29 @@ export function validate(ctx: Context, steps: Steps): Violation[] {
   for (let i = 1; i <= last; i++) {
     if (!known(i - 1) || !known(i)) continue
     const [a, b] = [pitch(i - 1), pitch(i)]
-    if (a.step === b.step && a.alter === b.alter) add('repeat', 'Repeated note', [i - 1, i])
-    else {
-      const problem = melodicProblem(a, b)
-      if (problem) add('interval', `Unsingable leap: ${problem}`, [i - 1, i])
+    if (a.step === b.step && a.alter === b.alter) {
+      // AP (PIT-3.D.3): a note may repeat only from a strong beat.
+      if (!ap) add('repeat', 'Repeated note', [i - 1, i])
+      else if (slots[i - 1].offset !== 0) add('repeat', 'A repeated note must start on a downbeat', [i - 1, i])
+    } else {
+      const problem = ap ? apMelodicProblem(a, b, !ex.cpAbove) : melodicProblem(a, b)
+      if (problem) add('interval', `${ap ? 'Melodic interval not allowed' : 'Unsingable leap'}: ${problem}`, [i - 1, i])
     }
   }
   for (let i = 2; i <= last; i++) {
     if (!known(i - 2) || !known(i - 1) || !known(i)) continue
     const d1 = steps[i - 1]! - steps[i - 2]!
     const d2 = steps[i]! - steps[i - 1]!
+    const sameWayLeaps = Math.abs(d1) >= 2 && Math.abs(d2) >= 2 && Math.sign(d1) === Math.sign(d2)
+    if (ap) {
+      if (Math.abs(d1) === 7 && Math.sign(d2) !== -Math.sign(d1))
+        add('leap', 'After an octave leap, change direction', [i - 2, i - 1, i])
+      if (d1 === -4 && isTritone(intervalBetween(pitch(i - 2), pitch(i - 1))) && d2 !== 1)
+        add('leap', 'After falling a diminished fifth, step back up', [i - 2, i - 1, i])
+      if (sameWayLeaps && !inOneTriad([pitch(i - 2), pitch(i - 1), pitch(i)]))
+        add('leaps', 'Two leaps in one direction must outline a triad', [i - 2, i - 1, i])
+      continue
+    }
     if (unrecoveredLeap(d1, d2))
       add('leap', `After a leap of a ${intervalName(Math.abs(d1))}, turn back the other way`, [i - 2, i - 1, i])
     if (badLeapChain(pitch(i - 2), pitch(i - 1), pitch(i)))
@@ -232,7 +300,7 @@ export function validate(ctx: Context, steps: Steps): Violation[] {
     }
   }
   const written = steps.flatMap((s, i) => (s == null ? [] : [i]))
-  if (written.length > 1) {
+  if (!ap && written.length > 1) {
     const vals = written.map((i) => steps[i]!)
     const [lo, hi] = [Math.min(...vals), Math.max(...vals)]
     if (hi - lo > 9)

@@ -4,14 +4,25 @@ import {
   cantusTonic,
   cfPitch,
   LOWER_RANGE,
+  pitchIn,
   UPPER_RANGE,
   type Context,
   type Exercise,
   type Species,
 } from './exercise'
 import { choice, seeded, shuffle, weightedOrder, type Rand } from './random'
-import { validate } from './rules'
-import { badLeapChain, degree, intervalBetween, melodicProblem, MODES, unrecoveredLeap } from './theory'
+import { rulebook, validate } from './rules'
+import {
+  badLeapChain,
+  C_MAJOR,
+  degree,
+  intervalBetween,
+  isLeadingTone,
+  melodicProblem,
+  MODES,
+  unrecoveredLeap,
+  type Key,
+} from './theory'
 
 export type Level = 1 | 2 | 3 | 4 | 5
 
@@ -35,10 +46,19 @@ const BARS: Record<Species, readonly number[]> = {
 }
 const BLANK_SHARE = [0.25, 0.4, 0.55, 0.75, 1]
 
-const nat = (step: number) => ({ step, alter: 0 })
-
-/** A cantus firmus: starts and ends on the final, approached from the step above, mostly stepwise. */
-export function generateCantus(rand: Rand, tonic: number, voice: [number, number], length: number): number[] | null {
+/**
+ * A cantus firmus: starts and ends on the final, approached from the step above, mostly stepwise.
+ * With `resolveLeadingTone`, a leading tone always rises to the final, as AP voice leading wants of an outer voice.
+ */
+export function generateCantus(
+  rand: Rand,
+  key: Key,
+  tonic: number,
+  voice: [number, number],
+  length: number,
+  resolveLeadingTone: boolean,
+): number[] | null {
+  const nat = (step: number) => pitchIn(key, step)
   const lo = Math.max(voice[0], tonic - 3)
   const hi = Math.min(voice[1], tonic + 8)
   const cf = new Array<number>(length).fill(tonic)
@@ -49,6 +69,7 @@ export function generateCantus(rand: Rand, tonic: number, voice: [number, number
   const fits = (k: number): boolean => {
     const d = cf[k] - cf[k - 1]
     if (d === 0 || Math.abs(d) > 4 || melodicProblem(nat(cf[k - 1]), nat(cf[k]))) return false
+    if (resolveLeadingTone && isLeadingTone(nat(cf[k - 1]), key) && d !== 1) return false
     if (k >= 2) {
       if (unrecoveredLeap(cf[k - 1] - cf[k - 2], d)) return false
       if (badLeapChain(nat(cf[k - 2]), nat(cf[k - 1]), nat(cf[k]))) return false
@@ -88,7 +109,8 @@ export function solve(ctx: Context, rand: Rand, budget = 40 * ctx.slots.length):
   // Filled left to right; later slots stay null so only rules about the written prefix apply.
   const steps: (number | null)[] = new Array(n).fill(null)
   const [lo, hi] = ctx.range
-  const { mode, cpAbove, species } = ctx.ex
+  const { key, cpAbove, species } = ctx.ex
+  const nat = (step: number) => pitchIn(key, step)
   const leapy = species === 1 ? 1.6 : 1
   let nodes = 0
 
@@ -96,7 +118,7 @@ export function solve(ctx: Context, rand: Rand, budget = 40 * ctx.slots.length):
     let list = range(lo, hi)
     const cf = cfPitch(ctx, ctx.slots[i].bar)
     if (i === n - 1) list = list.filter((s) => intervalBetween(nat(s), cf).perfect === 'octave')
-    else if (i === n - 2) list = list.filter((s) => degree(s, mode) === 6)
+    else if (i === n - 2) list = list.filter((s) => degree(s, key) === 6)
     else if (i === 0)
       list = list.filter((s) => {
         const iv = intervalBetween(nat(s), cf)
@@ -123,17 +145,31 @@ export function solve(ctx: Context, rand: Rand, budget = 40 * ctx.slots.length):
   return place(0) ? (steps as number[]) : null
 }
 
-export function makePuzzle(dateKey: string, species: Species, level: Level): Puzzle {
-  const key = `${dateKey}/${species}/${level}`
+const SIGNATURES = [-3, -2, -1, 0, 1, 2, 3]
+
+/** Normal puzzles are all in C major. Hard ones pick any of the four modes in a key of up to three sharps or flats. */
+function pickKey(rand: Rand, hard: boolean): Key {
+  if (!hard) return C_MAJOR
+  const mode = choice(rand, MODES)
+  const sig = choice(rand, mode === 'ionian' ? SIGNATURES.filter((s) => s !== 0) : SIGNATURES)
+  return { mode, sig }
+}
+
+export const puzzleKey = (day: string, species: Species, level: Level, hard: boolean) =>
+  `${day}/${species}/${level}${hard ? '/hard' : ''}`
+
+export function makePuzzle(dateKey: string, species: Species, level: Level, hard = false): Puzzle {
+  const key = puzzleKey(dateKey, species, level, hard)
   const rand = seeded(key)
   for (let attempt = 0; attempt < 500; attempt++) {
-    const mode = choice(rand, MODES)
+    const tonality = pickKey(rand, hard)
     const cpAbove = rand() < 0.6
     const bars = BARS[species][level - 1]
-    const tonic = cantusTonic(mode, cpAbove)
-    const cf = generateCantus(rand, tonic, cpAbove ? LOWER_RANGE : UPPER_RANGE, bars)
+    const tonic = cantusTonic(tonality, cpAbove)
+    const voice = cpAbove ? LOWER_RANGE : UPPER_RANGE
+    const cf = generateCantus(rand, tonality, tonic, voice, bars, rulebook(species) === 'ap')
     if (!cf) continue
-    const exercise: Exercise = { species, mode, cpAbove, cf, slots: buildRhythm(species, bars, rand) }
+    const exercise: Exercise = { species, key: tonality, cpAbove, cf, slots: buildRhythm(species, bars, rand) }
     const ctx = analyze(exercise)
     let solution: number[] | null = null
     // Successful searches finish almost immediately; a stuck one is cheaper to restart than to finish.

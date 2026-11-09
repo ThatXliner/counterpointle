@@ -17,7 +17,9 @@ Strict counterpoint works a lot like sudoku. There's a short rulebook, every not
 
 ## How it plays
 
-Each day brings **25 puzzles**: five levels for each of Fux's five species. Every puzzle gives you a cantus firmus (the whole notes) and a counterpoint line with some notes missing. Level 1 leaves a few blanks. Level 5 leaves the whole line to you.
+Each day brings one puzzle per level: **five species × five levels**, 25 in all. Every puzzle gives you a cantus firmus (the whole notes) and a counterpoint line with some notes missing. Level 1 leaves a few blanks. Level 5 leaves the whole line to you.
+
+Puzzles are in C major. Flip to **Hard** for a separate daily set in other keys (up to three sharps or flats) and other modes: major, minor, Dorian and Mixolydian, with key signatures and a raised leading tone at the cadence.
 
 Tap a blank to drop a note, drag to adjust it, then **check**. You get six checks. After each one, every note you wrote lights up:
 
@@ -27,7 +29,7 @@ Tap a blank to drop a note, drag to adjust it, then **check**. You get six check
 | 🟨 | Breaks a **melodic** rule: a tritone leap, a repeated note, an unrecovered leap, too wide a range. |
 | 🟥 | Breaks a **harmonic** rule against the cantus: an unprepared dissonance, parallel fifths, a hidden octave. |
 
-A list under the score names each broken rule and its bar. When you solve it, you get a spoiler-free grid to share:
+A list under the score names each broken rule and its bar. When you solve it, you get a spoiler-free grid to share. On a phone the share button opens the share sheet:
 
 ```
 Counterpointle #1 · Species II · Level 3 · 2/6
@@ -38,7 +40,7 @@ Counterpointle #1 · Species II · Level 3 · 2/6
 | Species | Texture | What it drills |
 |:---:|---|---|
 | **I** | Note against note | Consonance, contrary motion, avoiding parallels |
-| **II** | Two against one | Passing tones on the weak beat |
+| **II** | Two against one | Passing and neighbor tones on the weak beat |
 | **III** | Four against one | Passing and neighbor tones, the cambiata |
 | **IV** | Syncopation | Suspensions: 7–6, 4–3, 9–8 above; 2–3, 4–5 below |
 | **V** | Florid | All of the above in a mixed rhythm, with eighth notes |
@@ -53,23 +55,35 @@ Counterpointle #1 · Species II · Level 3 · 2/6
 
 The interesting parts live in [`src/music/`](src/music). They're plain TypeScript with no framework.
 
-- **[`theory.ts`](src/music/theory.ts)** handles pitch as diatonic steps plus an alteration, so a sixth is always a sixth (never a "diminished seventh" from MIDI math). It also classifies intervals and says what makes a melodic leap unsingable.
-- **[`rules.ts`](src/music/rules.ts)** is the rule engine: seventeen kinds of rule, checked in one pass. It uses three-valued logic: a rule that depends on a note you haven't written yet stays *undecided* instead of failing. That makes the same validator work for checking your answer and for searching.
+- **[`theory.ts`](src/music/theory.ts)** handles pitch as diatonic steps plus an alteration, so a sixth is always a sixth (never a "diminished seventh" from MIDI math). It knows key signatures and modes, classifies intervals, and says which melodic leaps each rulebook allows.
+- **[`rules.ts`](src/music/rules.ts)** is the rule engine: two rulebooks and about twenty kinds of rule, checked in one pass. It uses three-valued logic: a rule that depends on a note you haven't written yet stays *undecided* instead of failing. That makes the same validator work for checking your answer and for searching.
 - **[`generate.ts`](src/music/generate.ts)** composes each puzzle. It writes a cantus firmus by backtracking (start and end on the final, mostly steps, a single climax), then searches for a full counterpoint that passes every rule. Then it blanks out a share of the notes. Every puzzle is solvable because the generator solved it first. If you run out of checks, it shows you that solution as one possible answer.
 - **Everyone gets the same puzzles.** Generation is seeded from the date, so it runs entirely in the browser with no backend. It runs in Web Workers so the page never stalls.
 
 The notation is a hand-built SVG grand staff, not a notation library, because the staff *is* the input device. Clicks and drags map straight to diatonic steps. Playback is a small Web Audio synth with a moving playhead.
 
-### The rulebook
+### The rulebooks
 
-Rules follow Fux's *Gradus ad Parnassum* (1725) as most counterpoint classes teach it today, applied strictly. All exercises are in the white-key modes (Ionian, Dorian, Mixolydian, Aeolian). The leading tone is raised automatically at the cadence. Turn off the interval numbers under the staff for hard mode.
+**Species I and II** follow the voice-leading conventions in College Board's [AP Music Theory Course and Exam Description](https://apcentral.collegeboard.org/courses/ap-music-theory), which is where most students first meet two-voice writing:
+
+- No parallel fifths or octaves, and none by contrary motion. Fifths or octaves on consecutive downbeats count too ("beat-to-beat").
+- Hidden fifths and octaves are fine when the upper voice moves by step, and wrong when it leaps.
+- A diminished fifth may not move to a perfect fifth.
+- No crossing or overlapping voices. No more than three thirds or three sixths in a row.
+- The leading tone always rises to the tonic and is never doubled. No cross relations.
+- The upper voice moves by seconds, thirds, perfect fourths and fifths. The bass may also leap a sixth or an octave (then turn back), or fall a diminished fifth (then step up). Successive leaps in one direction must outline a triad. A note may repeat only from a strong beat.
+- Second species allows neighbor tones as well as passing tones on the weak beat.
+
+The AP framework says nothing about how a two-voice exercise begins and ends, so the opening (a perfect consonance) and the cadence (leading tone to octave or unison) keep the species conventions.
+
+**Species III–V** follow Fux's *Gradus ad Parnassum* (1725) as most counterpoint classes teach it, applied strictly: no hidden fifths or octaves at all, leaps of a fifth or more must turn back, no repeated notes, and so on. Each puzzle lists its rules under the score.
 
 ## Development
 
 ```sh
 bun install      # or npm install
 bun run dev      # http://localhost:5173
-bun run test     # rule unit tests + generates 75 puzzles and validates every solution
+bun run test     # rule unit tests + generates 150 puzzles and validates every solution
 bun run build
 ```
 
@@ -87,4 +101,4 @@ Built with React, Vite and TypeScript. Deployed on Vercel.
 
 ## License
 
-MIT
+Public domain. See [LICENSE](LICENSE) (the Unlicense).
