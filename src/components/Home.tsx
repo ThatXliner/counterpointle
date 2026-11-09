@@ -14,9 +14,9 @@ function cellState(day: string, s: Species, l: Level, variant: Variant) {
   return { kind: g.attempts.length ? ('started' as const) : ('new' as const), tries: g.attempts.length }
 }
 
-/** "Counterpointle AP #1 · Hard" */
+/** "Counterpointle AP #1 · Hard mode ♯♭" */
 export function gameTitle(day: string, { rules, hard }: Variant): string {
-  return `Counterpointle${rules === 'ap' ? ' AP' : ''} #${dayNumber(day)}${hard ? ' · Hard' : ''}`
+  return `Counterpointle${rules === 'ap' ? ' AP' : ''} #${dayNumber(day)}${hard ? ' · Hard mode ♯♭' : ''}`
 }
 
 export function shareDay(day: string, variant: Variant): string {
@@ -82,7 +82,7 @@ export function Home({ day, variant, onHard, onOpen, onShare }: HomeProps) {
           options={[[false, 'C major'], [true, 'Hard', 'all keys & modes']]}
           onChange={onHard}
         />
-        <button className={solved ? 'primary' : 'ghost-btn'} onClick={onShare} disabled={solved === 0}>
+        <button className={solved ? `primary${variant.hard ? ' gold' : ''}` : 'ghost-btn'} onClick={onShare} disabled={solved === 0}>
           Share · {solved}/{cells.length}
         </button>
       </div>

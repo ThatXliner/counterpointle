@@ -37,6 +37,14 @@ Counterpointle #1 · Species II · Level 2 · 2/6
 🟩🟩🟩🟩🟩🟩🟩
 ```
 
+Hard-mode results say so, and name the key you beat:
+
+```
+Counterpointle #1 · Hard mode ♯♭
+Species II · Level 2 · D Mixolydian · 1/6
+🟩🟩🟩🟩🟩🟩🟩
+```
+
 | Species | Texture | What it drills |
 |:---:|---|---|
 | **I** | Note against note | Consonance, contrary motion, avoiding parallels |

@@ -205,8 +205,12 @@ function Board({ puzzle, day, variant, showFigures, sound, toast, share, onNavig
 
   const shareResult = () => {
     const result = state.status === 'won' ? `${state.attempts.length}/${MAX_CHECKS}` : `X/${MAX_CHECKS}`
+    const puzzleLine = [`Species ${ROMAN[species]}`, `Level ${level}`, variant.hard && keyName(ctx.ex.key), result]
+    const header = variant.hard
+      ? [gameTitle(day, variant), puzzleLine.filter(Boolean).join(' · ')]
+      : [[gameTitle(day, variant), ...puzzleLine].filter(Boolean).join(' · ')]
     const text = [
-      [gameTitle(day, variant), `Species ${ROMAN[species]}`, `Level ${level}`, result].join(' · '),
+      ...header,
       ...state.attempts.map((a) => a.bars.map((m) => SQUARE[m]).join('')),
       siteUrl(),
     ].join('\n')
@@ -283,14 +287,17 @@ function Board({ puzzle, day, variant, showFigures, sound, toast, share, onNavig
 
       {state.status !== 'playing' && (
         <div className={`card result ${state.status}`}>
-          <h3>{state.status === 'won' ? `Solved in ${state.attempts.length} of ${MAX_CHECKS}` : 'Out of checks'}</h3>
+          <h3>
+            {state.status === 'won' ? `Solved in ${state.attempts.length} of ${MAX_CHECKS}` : 'Out of checks'}
+            {variant.hard && state.status === 'won' && <span className="dim">, in {keyName(ctx.ex.key)}</span>}
+          </h3>
           <p className="dim">
             {state.status === 'won'
               ? 'Your counterpoint breaks no rules. There are usually many answers. This one is yours.'
               : 'There is more than one right answer. Want to see one?'}
           </p>
           <div className="row">
-            <button className="primary" onClick={shareResult}>
+            <button className={`primary${variant.hard ? ' gold' : ''}`} onClick={shareResult}>
               Share result
             </button>
             {state.status === 'lost' && (
