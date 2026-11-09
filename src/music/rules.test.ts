@@ -1,18 +1,39 @@
 import { describe, expect, it } from 'vitest'
 import { analyze, buildRhythm, cpPitch, type Exercise, type Species } from './exercise'
-import { makePuzzle, type Level } from './generate'
-import { validate } from './rules'
+import { makePuzzle, type Level, type Variant } from './generate'
+import { SPECIES_IN, validate, type Rulebook } from './rules'
 import { C_MAJOR, keyName } from './theory'
 
 const C3 = 21
 const cf = [0, 2, 1, 3, 2, 1, 0].map((d) => C3 + d) // C E D F E D C
 
-function exercise(species: Species, cantus: number[], above: boolean): Exercise {
-  return { species, key: C_MAJOR, cpAbove: above, cf: cantus, slots: buildRhythm(species, cantus.length, Math.random) }
+function exercise(rules: Rulebook, species: Species, cantus: number[], above: boolean): Exercise {
+  return { species, rules, key: C_MAJOR, cpAbove: above, cf: cantus, slots: buildRhythm(species, cantus.length, Math.random) }
 }
 const check = (species: Species, cp: (number | null)[], above = true, cantus = cf) =>
-  validate(analyze(exercise(species, cantus, above)), cp)
+  validate(analyze(exercise('ap', species, cantus, above)), cp)
+const checkFux = (species: Species, cp: (number | null)[], above = true, cantus = cf) =>
+  validate(analyze(exercise('fux', species, cantus, above)), cp)
 const rules = (vs: { rule: string }[]) => vs.map((v) => v.rule)
+// D4 over B3 (a third), then both fall into C4 over F3 (a fifth): the upper voice steps, the lower leaps.
+const HIDDEN_FIFTH = { cf: [21, 27, 24, 22, 23, 22, 21], cp: [null, 29, 28, null, null, null, null] }
+
+describe('first species (Fux rules)', () => {
+  it('accepts a textbook counterpoint', () => {
+    // CF:  C3  E3  D3  F3  E3  D3  C3
+    // CP:  G3  C4  B3  A3  C4  B3  C4   → 5 6 6 3 6 6 8
+    expect(checkFux(1, [25, 28, 27, 26, 28, 27, 28])).toEqual([])
+  })
+
+  it('flags hidden fifths even when the upper voice steps', () => {
+    expect(rules(checkFux(1, HIDDEN_FIFTH.cp, true, HIDDEN_FIFTH.cf))).toContain('hidden')
+  })
+
+  it('forbids repeated notes and unrecovered leaps', () => {
+    expect(rules(checkFux(1, [25, 25, null, null, null, null, null]))).toContain('repeat')
+    expect(rules(checkFux(1, [21, 25, 26, null, null, null, null]))).toContain('leap')
+  })
+})
 
 describe('first species (AP rules)', () => {
   it('accepts a good counterpoint', () => {
@@ -37,9 +58,7 @@ describe('first species (AP rules)', () => {
   })
 
   it('allows hidden fifths when the upper voice steps', () => {
-    // CF E3→D3 falls a step, CP B3→A3 falls a step into the fifth
-    const vs = check(1, [28, 27, 26, 28, 28, 27, 28], true, [21, 23, 22, 24, 23, 22, 21])
-    expect(rules(vs)).not.toContain('hidden')
+    expect(rules(check(1, HIDDEN_FIFTH.cp, true, HIDDEN_FIFTH.cf))).toEqual([])
   })
 
   it('makes the leading tone rise to the tonic', () => {
@@ -96,7 +115,7 @@ describe('second species (AP rules)', () => {
 
 describe('keys', () => {
   it('spells notes from the key signature and raises the leading tone', () => {
-    const p = makePuzzle('2026-11-09', 1, 1, true)
+    const p = makePuzzle('2026-11-09', 1, 1, { rules: 'ap', hard: true })
     const ctx = analyze(p.exercise)
     expect(keyName(p.exercise.key)).toMatch(/^[A-G][♯♭]? (major|minor|Dorian|Mixolydian)$/)
     const penultimate = cpPitch(ctx, p.solution.length - 2, p.solution[p.solution.length - 2])
@@ -106,13 +125,15 @@ describe('keys', () => {
 
 describe('generated puzzles', () => {
   const days = ['2026-11-09', '2026-12-25', '2027-03-14']
-  for (const hard of [false, true]) {
-    for (const species of [1, 2, 3, 4, 5] as Species[]) {
-      it(`species ${species}${hard ? ' (hard)' : ''}: solutions are valid and given notes come from them`, () => {
+  const variants: Variant[] = (['fux', 'ap'] as const).flatMap((rules) => [false, true].map((hard) => ({ rules, hard })))
+  for (const variant of variants) {
+    for (const species of SPECIES_IN[variant.rules]) {
+      it(`${variant.rules}${variant.hard ? ' hard' : ''} species ${species}: solutions are valid and given notes come from them`, () => {
         for (const day of days) {
-          for (const level of [1, 2, 3, 4, 5] as Level[]) {
-            const p = makePuzzle(day, species, level, hard)
-            if (!hard) expect(p.exercise.key).toEqual(C_MAJOR)
+          for (const level of [1, 2, 3] as Level[]) {
+            const p = makePuzzle(day, species, level, variant)
+            if (!variant.hard) expect(p.exercise.key).toEqual(C_MAJOR)
+            expect(p.exercise.rules).toBe(variant.rules)
             expect(validate(analyze(p.exercise), p.solution)).toEqual([])
             p.given.forEach((g, i) => g !== null && expect(g).toBe(p.solution[i]))
             expect(p.given.some((g) => g === null)).toBe(true)
@@ -123,6 +144,7 @@ describe('generated puzzles', () => {
   }
 
   it('is the same puzzle for everyone on the same day', () => {
-    expect(makePuzzle('2026-11-09', 3, 2)).toEqual(makePuzzle('2026-11-09', 3, 2))
+    const fux = { rules: 'fux', hard: false } as const
+    expect(makePuzzle('2026-11-09', 3, 2, fux)).toEqual(makePuzzle('2026-11-09', 3, 2, fux))
   })
 })

@@ -11,7 +11,7 @@ import {
   type Species,
 } from './exercise'
 import { choice, seeded, shuffle, weightedOrder, type Rand } from './random'
-import { rulebook, validate } from './rules'
+import { validate, type Rulebook } from './rules'
 import {
   badLeapChain,
   C_MAJOR,
@@ -24,7 +24,14 @@ import {
   type Key,
 } from './theory'
 
-export type Level = 1 | 2 | 3 | 4 | 5
+export type Level = 1 | 2 | 3
+
+/** Which daily set a puzzle belongs to. */
+export interface Variant {
+  rules: Rulebook
+  /** Other keys and modes instead of C major. */
+  hard: boolean
+}
 
 export interface Puzzle {
   key: string
@@ -38,13 +45,13 @@ export interface Puzzle {
 }
 
 const BARS: Record<Species, readonly number[]> = {
-  1: [8, 9, 10, 11, 12],
-  2: [8, 9, 9, 10, 11],
-  3: [7, 8, 8, 9, 10],
-  4: [8, 9, 9, 10, 11],
-  5: [7, 8, 8, 9, 10],
+  1: [8, 10, 12],
+  2: [8, 9, 11],
+  3: [7, 8, 10],
+  4: [8, 9, 11],
+  5: [7, 8, 10],
 }
-const BLANK_SHARE = [0.25, 0.4, 0.55, 0.75, 1]
+const BLANK_SHARE = [0.3, 0.6, 1]
 
 /**
  * A cantus firmus: starts and ends on the final, approached from the step above, mostly stepwise.
@@ -155,11 +162,12 @@ function pickKey(rand: Rand, hard: boolean): Key {
   return { mode, sig }
 }
 
-export const puzzleKey = (day: string, species: Species, level: Level, hard: boolean) =>
-  `${day}/${species}/${level}${hard ? '/hard' : ''}`
+export const puzzleKey = (day: string, species: Species, level: Level, { rules, hard }: Variant) =>
+  `${day}/${species}/${level}${rules === 'ap' ? '/ap' : ''}${hard ? '/hard' : ''}`
 
-export function makePuzzle(dateKey: string, species: Species, level: Level, hard = false): Puzzle {
-  const key = puzzleKey(dateKey, species, level, hard)
+export function makePuzzle(dateKey: string, species: Species, level: Level, variant: Variant): Puzzle {
+  const { rules, hard } = variant
+  const key = puzzleKey(dateKey, species, level, variant)
   const rand = seeded(key)
   for (let attempt = 0; attempt < 500; attempt++) {
     const tonality = pickKey(rand, hard)
@@ -167,9 +175,9 @@ export function makePuzzle(dateKey: string, species: Species, level: Level, hard
     const bars = BARS[species][level - 1]
     const tonic = cantusTonic(tonality, cpAbove)
     const voice = cpAbove ? LOWER_RANGE : UPPER_RANGE
-    const cf = generateCantus(rand, tonality, tonic, voice, bars, rulebook(species) === 'ap')
+    const cf = generateCantus(rand, tonality, tonic, voice, bars, rules === 'ap')
     if (!cf) continue
-    const exercise: Exercise = { species, key: tonality, cpAbove, cf, slots: buildRhythm(species, bars, rand) }
+    const exercise: Exercise = { species, rules, key: tonality, cpAbove, cf, slots: buildRhythm(species, bars, rand) }
     const ctx = analyze(exercise)
     let solution: number[] | null = null
     // Successful searches finish almost immediately; a stuck one is cheaper to restart than to finish.

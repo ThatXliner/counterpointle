@@ -3,9 +3,9 @@
 # Counter*point*le
 
 **A daily counterpoint puzzle.** Finish the line against a cantus firmus without breaking the rules.<br>
-Five species, five levels each, and any correct answer counts.
+Five species, three levels each, and any correct answer counts.
 
-**[▶ Play today's puzzles](https://counterpointle.vercel.app)**
+**[▶ Play today's puzzles](https://counterpointle.vercel.app)** · [AP Music Theory version](https://counterpointle.vercel.app/ap)
 
 <img src="docs/game.png" alt="A second-species puzzle after one check: correct notes in green, a melodic slip in amber, harmonic errors in red, with the broken rules listed by bar" width="780">
 
@@ -17,7 +17,7 @@ Strict counterpoint works a lot like sudoku. There's a short rulebook, every not
 
 ## How it plays
 
-Each day brings one puzzle per level: **five species × five levels**, 25 in all. Every puzzle gives you a cantus firmus (the whole notes) and a counterpoint line with some notes missing. Level 1 leaves a few blanks. Level 5 leaves the whole line to you.
+Each day brings **three levels for each of the five species**, 15 puzzles in all. Every puzzle gives you a cantus firmus (the whole notes) and a counterpoint line with some notes missing. Level 1 leaves a few blanks. Level 3 leaves the whole line to you.
 
 Puzzles are in C major. Flip to **Hard** for a separate daily set in other keys (up to three sharps or flats) and other modes: major, minor, Dorian and Mixolydian, with key signatures and a raised leading tone at the cadence.
 
@@ -32,7 +32,7 @@ Tap a blank to drop a note, drag to adjust it, then **check**. You get six check
 A list under the score names each broken rule and its bar. When you solve it, you get a spoiler-free grid to share. On a phone the share button opens the share sheet:
 
 ```
-Counterpointle #1 · Species II · Level 3 · 2/6
+Counterpointle #1 · Species II · Level 2 · 2/6
 🟩🟥🟩🟩🟥🟥🟩
 🟩🟩🟩🟩🟩🟩🟩
 ```
@@ -46,7 +46,7 @@ Counterpointle #1 · Species II · Level 3 · 2/6
 | **V** | Florid | All of the above in a mixed rhythm, with eighth notes |
 
 <p align="center">
-  <img src="docs/home.png" alt="The daily board: five species, five levels each" width="560">
+  <img src="docs/home.png" alt="The daily board: five species, three levels each" width="560">
   &nbsp;
   <img src="docs/game-dark.png" alt="A puzzle on a phone in dark mode" width="210">
 </p>
@@ -62,32 +62,32 @@ The interesting parts live in [`src/music/`](src/music). They're plain TypeScrip
 
 The notation is a hand-built SVG grand staff, not a notation library, because the staff *is* the input device. Clicks and drags map straight to diatonic steps. Playback is a small Web Audio synth with a moving playhead.
 
-### The rulebooks
+### Two versions
 
-**Species I and II** follow the voice-leading conventions in College Board's [AP Music Theory Course and Exam Description](https://apcentral.collegeboard.org/courses/ap-music-theory), which is where most students first meet two-voice writing:
+**[counterpointle.vercel.app](https://counterpointle.vercel.app)** is strict species counterpoint after Fux's *Gradus ad Parnassum* (1725), as most counterpoint classes teach it: no hidden fifths or octaves at all, leaps of a fifth or more must turn back, no repeated notes, and so on, across all five species.
+
+**[counterpointle.vercel.app/ap](https://counterpointle.vercel.app/ap)** follows the voice-leading conventions in College Board's [AP Music Theory Course and Exam Description](https://apcentral.collegeboard.org/courses/ap-music-theory) instead. The exam only asks students to write unaccented passing and neighbor tones, so the AP version covers first and second species:
 
 - No parallel fifths or octaves, and none by contrary motion. Fifths or octaves on consecutive downbeats count too ("beat-to-beat").
 - Hidden fifths and octaves are fine when the upper voice moves by step, and wrong when it leaps.
 - A diminished fifth may not move to a perfect fifth.
 - No crossing or overlapping voices. No more than three thirds or three sixths in a row.
-- The leading tone always rises to the tonic and is never doubled. No cross relations.
+- A leading tone that belongs to the harmony rises to the tonic and is never doubled. No cross relations.
 - The upper voice moves by seconds, thirds, perfect fourths and fifths. The bass may also leap a sixth or an octave (then turn back), or fall a diminished fifth (then step up). Successive leaps in one direction must outline a triad. A note may repeat only from a strong beat.
 - Second species allows neighbor tones as well as passing tones on the weak beat.
 
-The AP framework says nothing about how a two-voice exercise begins and ends, so the opening (a perfect consonance) and the cadence (leading tone to octave or unison) keep the species conventions.
-
-**Species III–V** follow Fux's *Gradus ad Parnassum* (1725) as most counterpoint classes teach it, applied strictly: no hidden fifths or octaves at all, leaps of a fifth or more must turn back, no repeated notes, and so on. Each puzzle lists its rules under the score.
+The AP framework says nothing about how a two-voice exercise begins and ends, so the opening (a perfect consonance) and the cadence (leading tone to octave or unison) keep the species conventions. Each puzzle lists its rules under the score.
 
 ## Development
 
 ```sh
 bun install      # or npm install
 bun run dev      # http://localhost:5173
-bun run test     # rule unit tests + generates 150 puzzles and validates every solution
+bun run test     # rule unit tests + generates 126 puzzles and validates every solution
 bun run build
 ```
 
-Add `?d=2026-12-25` to the URL to play any day's puzzles.
+Add `?d=2026-12-25` to the URL to play any day's puzzles. The AP version is the same app served at `/ap`.
 
 ```
 src/

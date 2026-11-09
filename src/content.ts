@@ -7,14 +7,17 @@ export const SPECIES_INFO: Record<Species, { name: string; tagline: string; rule
   1: {
     name: 'First species',
     tagline: 'Note against note',
-    rules: ['Every note is a consonance: unison, third, fifth, sixth, octave (or compounds). Fourths count as dissonant.'],
+    rules: [
+      'Every note is a consonance: unison, third, fifth, sixth, octave (or compounds). Fourths count as dissonant.',
+      'No more than three parallel thirds or sixths in a row.',
+    ],
   },
   2: {
     name: 'Second species',
     tagline: 'Two against one',
     rules: [
       'Downbeats are consonant.',
-      'The weak half may be dissonant as a passing tone (step through) or a neighbor tone (step away and back).',
+      'The weak half may be dissonant only as a passing tone, stepping through in one direction.',
       'No fifths or octaves on consecutive downbeats.',
     ],
   },
@@ -48,6 +51,16 @@ export const SPECIES_INFO: Record<Species, { name: string; tagline: string; rule
   },
 }
 
+/** Species rules where the AP rulebook differs from Fux. */
+export const AP_SPECIES_RULES: Partial<Record<Species, string[]>> = {
+  1: ['Every note is a consonance: unison, third, fifth, sixth, octave (or compounds). Fourths count as dissonant.'],
+  2: [
+    'Downbeats are consonant.',
+    'The weak half may be dissonant as a passing tone (step through) or a neighbor tone (step away and back).',
+    'No fifths or octaves on consecutive downbeats ("beat-to-beat").',
+  ],
+}
+
 const FRAME = [
   'Begin on a perfect consonance (unison, fifth or octave above the cantus; unison or octave below it).',
   'End on a unison or octave, reached from the leading tone. In minor and the modes it is raised for you in the second-to-last bar.',
@@ -65,7 +78,7 @@ export const GENERAL_RULES: Record<Rulebook, string[]> = {
     'Moving into a fifth or octave in similar motion is fine only if the upper voice moves by step.',
     'A diminished fifth may not move to a perfect fifth.',
     "Don't cross the cantus or overlap it (move past the note it just left).",
-    'The leading tone always rises by step to the tonic, and is never doubled.',
+    'A leading tone that belongs to the harmony (a consonance) rises by step to the tonic, and is never doubled.',
     'No more than three thirds or three sixths in a row.',
     'The upper voice moves by seconds, thirds, perfect fourths and fifths. The bass may also leap a sixth or an octave (then turn back), or fall a diminished fifth (then step up).',
     'Two leaps in one direction must outline a triad. A note may repeat only from a downbeat.',

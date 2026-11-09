@@ -45,11 +45,13 @@ export type RuleKind = 'harmonic' | 'melodic'
 const MELODIC: ReadonlySet<RuleId> = new Set(['leading-tone', 'repeat', 'interval', 'leap', 'leaps', 'range', 'eighths'])
 
 /**
- * Species I and II follow the voice-leading conventions of the AP Music Theory Course and Exam Description,
- * since that is where most students first meet two-voice writing. Species III–V follow Fux.
+ * Fux is strict species counterpoint after Gradus ad Parnassum (1725). AP applies the voice-leading conventions of
+ * the AP Music Theory Course and Exam Description to first and second species, the only ones the exam's own
+ * writing touches: it asks for unaccented passing and neighbor tones, and suspensions only when a figured bass says so.
  */
-export type Rulebook = 'ap' | 'fux'
-export const rulebook = (species: Species): Rulebook => (species <= 2 ? 'ap' : 'fux')
+export type Rulebook = 'fux' | 'ap'
+
+export const SPECIES_IN: Record<Rulebook, readonly Species[]> = { fux: [1, 2, 3, 4, 5], ap: [1, 2] }
 
 export interface Violation {
   rule: RuleId
@@ -77,7 +79,7 @@ const isTritone = (iv: Interval) => (iv.simple === 3 || iv.simple === 4) && iv.s
  */
 export function validate(ctx: Context, steps: Steps): Violation[] {
   const { ex, slots, moments, bars } = ctx
-  const ap = rulebook(ex.species) === 'ap'
+  const ap = ex.rules === 'ap'
   const out: Violation[] = []
   const seen = new Set<string>()
   const last = slots.length - 1
@@ -230,7 +232,7 @@ export function validate(ctx: Context, steps: Steps): Violation[] {
       if (now.perfect && before.perfect === now.perfect) add('parallels', `${cap(plural(now))} on consecutive upbeats`, [i - 1, i], c.bar)
     }
   }
-  if (ex.species <= 2) {
+  if (ap || ex.species === 1) {
     let run = 0
     let prevSimple = -1
     for (let i = 0; i <= last; i++) {
@@ -257,7 +259,9 @@ export function validate(ctx: Context, steps: Steps): Violation[] {
           add('cross-relation', `Cross relation: ${pitchName(p).slice(0, -1)} right after ${pitchName(cf).slice(0, -1)} in the cantus`, [i])
       }
       // The cadence rule already covers the last leading tone.
-      if (i < last - 1 && known(i + 1) && isLeadingTone(p, ex.key) && steps[i + 1] !== steps[i] && steps[i + 1]! - steps[i]! !== 1)
+      // A dissonant leading tone is a passing or neighbor tone, not a chord tone, so it may move on by step.
+      const chordTone = against(i, s.bar).consonance !== 'dissonant'
+      if (i < last - 1 && chordTone && known(i + 1) && isLeadingTone(p, ex.key) && steps[i + 1] !== steps[i] && steps[i + 1]! - steps[i]! !== 1)
         add('leading-tone', 'The leading tone must rise by step to the tonic', [i, i + 1])
     }
   }

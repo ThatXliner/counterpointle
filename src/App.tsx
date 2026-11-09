@@ -1,17 +1,17 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Game } from './components/Game'
 import { Help } from './components/Help'
 import { Home, shareDay } from './components/Home'
 import type { Species } from './music/exercise'
-import type { Level } from './music/generate'
-import { currentDay, prefetchDay } from './puzzles'
+import type { Level, Variant } from './music/generate'
+import { currentDay, prefetchDay, SITE_RULES, speciesFor } from './puzzles'
 import { shareText } from './share'
 import { loadSetting, saveSetting } from './storage'
 
 type Route = { species: Species; level: Level } | null
 
 function parseRoute(): Route {
-  const m = location.hash.match(/^#\/([1-5])\/([1-5])$/)
+  const m = location.hash.match(/^#\/([1-5])\/([1-3])$/)
   return m ? { species: Number(m[1]) as Species, level: Number(m[2]) as Level } : null
 }
 
@@ -20,6 +20,7 @@ export function App() {
   const [route, setRoute] = useState<Route>(parseRoute)
   const [help, setHelp] = useState(() => !loadSetting('seenHelp', false))
   const [hard, setHard] = useState(() => loadSetting('hard', false))
+  const variant = useMemo<Variant>(() => ({ rules: SITE_RULES, hard }), [hard])
   const [showFigures, setShowFigures] = useState(() => loadSetting('figures', true))
   const [sound, setSound] = useState(() => loadSetting('sound', true))
   const [toastMsg, setToastMsg] = useState<string | null>(null)
@@ -30,9 +31,9 @@ export function App() {
     return () => window.removeEventListener('hashchange', onHash)
   }, [])
   useEffect(() => {
-    const id = setTimeout(() => prefetchDay(day, hard), 400)
+    const id = setTimeout(() => prefetchDay(day, variant), 400)
     return () => clearTimeout(id)
-  }, [day, hard])
+  }, [day, variant])
   useEffect(() => saveSetting('hard', hard), [hard])
   useEffect(() => saveSetting('figures', showFigures), [showFigures])
   useEffect(() => saveSetting('sound', sound), [sound])
@@ -62,6 +63,7 @@ export function App() {
       <header className="masthead">
         <a className="wordmark" href="#" onClick={(e) => (e.preventDefault(), navigate(1, null))}>
           Counter<span>point</span>le
+          {SITE_RULES === 'ap' && <small>AP</small>}
         </a>
         <div className="settings">
           <button className={`icon-btn ${showFigures ? 'on' : ''}`} onClick={() => setShowFigures((v) => !v)} aria-pressed={showFigures} title="Interval numbers under the staff">
@@ -76,12 +78,12 @@ export function App() {
         </div>
       </header>
       <main>
-        {route ? (
+        {route && speciesFor(variant).includes(route.species) ? (
           <Game
             day={day}
             species={route.species}
             level={route.level}
-            hard={hard}
+            variant={variant}
             showFigures={showFigures}
             sound={sound}
             toast={setToastMsg}
@@ -89,11 +91,23 @@ export function App() {
             onNavigate={navigate}
           />
         ) : (
-          <Home day={day} hard={hard} onHard={setHard} onOpen={navigate} onShare={() => share(shareDay(day, hard))} />
+          <Home
+            day={day}
+            variant={variant}
+            onHard={setHard}
+            onOpen={navigate}
+            onShare={() => share(shareDay(day, variant))}
+          />
         )}
       </main>
       <footer className="dim small">
-        Species I–II follow AP Music Theory voice leading; III–V follow Fux, <em>Gradus ad Parnassum</em> (1725).{' '}
+        {SITE_RULES === 'ap' ? (
+          <>Rules after the AP Music Theory Course and Exam Description. </>
+        ) : (
+          <>
+            Rules after Fux, <em>Gradus ad Parnassum</em> (1725).{' '}
+          </>
+        )}
         <a href="https://github.com/ThatXliner/counterpointle">Source</a>
       </footer>
       <Help open={help} onClose={closeHelp} />

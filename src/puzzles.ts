@@ -1,10 +1,16 @@
 import type { Species } from './music/exercise'
-import { puzzleKey, type Level, type Puzzle } from './music/generate'
+import { puzzleKey, type Level, type Puzzle, type Variant } from './music/generate'
+import { SPECIES_IN, type Rulebook } from './music/rules'
 import type { PuzzleRequest } from './worker'
 
-export const SPECIES: readonly Species[] = [1, 2, 3, 4, 5]
-export const LEVELS: readonly Level[] = [1, 2, 3, 4, 5]
+export const LEVELS: readonly Level[] = [1, 2, 3]
+export const speciesFor = (variant: Variant): readonly Species[] => SPECIES_IN[variant.rules]
 export const MAX_CHECKS = 6
+
+/** The site at /ap plays by the AP rulebook; everywhere else is Fux. */
+export const SITE_RULES: Rulebook = /^\/ap\/?$/.test(location.pathname) ? 'ap' : 'fux'
+/** Where this version of the game lives, for share links. */
+export const siteUrl = () => location.origin + (SITE_RULES === 'ap' ? '/ap' : '')
 
 const LAUNCH = Date.UTC(2026, 10, 9)
 
@@ -43,15 +49,15 @@ function spawn(): Worker {
 
 function stored(key: string): Puzzle | null {
   try {
-    const raw = localStorage.getItem(`cptl:v2:puzzle:${key}`)
+    const raw = localStorage.getItem(`cptl:v3:puzzle:${key}`)
     return raw ? (JSON.parse(raw) as Puzzle) : null
   } catch {
     return null
   }
 }
 
-export function loadPuzzle(day: string, species: Species, level: Level, hard: boolean, urgent = true): Promise<Puzzle> {
-  const key = puzzleKey(day, species, level, hard)
+export function loadPuzzle(day: string, species: Species, level: Level, variant: Variant, urgent = true): Promise<Puzzle> {
+  const key = puzzleKey(day, species, level, variant)
   const hit = cache.get(key)
   if (hit) return hit
   const saved = stored(key)
@@ -61,19 +67,19 @@ export function loadPuzzle(day: string, species: Species, level: Level, hard: bo
         const id = nextId++
         pending.set(id, (p) => {
           try {
-            localStorage.setItem(`cptl:v2:puzzle:${key}`, JSON.stringify(p))
+            localStorage.setItem(`cptl:v3:puzzle:${key}`, JSON.stringify(p))
           } catch {
             /* storage full or blocked: the puzzle still works for this visit */
           }
           resolve(p)
         })
-        const req: PuzzleRequest = { id, day, species, level, hard }
+        const req: PuzzleRequest = { id, day, species, level, variant }
         ;(urgent ? workers.now : workers.later).postMessage(req)
       })
   cache.set(key, promise)
   return promise
 }
 
-export function prefetchDay(day: string, hard: boolean) {
-  for (const s of SPECIES) for (const l of LEVELS) void loadPuzzle(day, s, l, hard, false)
+export function prefetchDay(day: string, variant: Variant) {
+  for (const s of speciesFor(variant)) for (const l of LEVELS) void loadPuzzle(day, s, l, variant, false)
 }

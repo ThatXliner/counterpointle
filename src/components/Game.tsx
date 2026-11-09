@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { play, type Tone } from '../audio'
-import { GENERAL_RULES, ROMAN, RULEBOOK_NAME, SPECIES_INFO } from '../content'
+import { AP_SPECIES_RULES, GENERAL_RULES, ROMAN, RULEBOOK_NAME, SPECIES_INFO } from '../content'
 import { analyze, BAR, cfPitch, cpPitch, type Context, type Species } from '../music/exercise'
-import type { Level, Puzzle } from '../music/generate'
-import { rulebook, validate, type Violation } from '../music/rules'
+import type { Level, Puzzle, Variant } from '../music/generate'
+import { validate, type Violation } from '../music/rules'
 import { keyName, midi, pitchName } from '../music/theory'
-import { dayNumber, loadPuzzle, MAX_CHECKS } from '../puzzles'
+import { LEVELS, loadPuzzle, MAX_CHECKS, siteUrl, speciesFor } from '../puzzles'
 import { loadGame, saveGame, type Attempt, type GameState, type Mark } from '../storage'
+import { gameTitle } from './Home'
 import { Staff } from './Staff'
 
 const EIGHTH_SECONDS = 0.17
@@ -21,7 +22,7 @@ interface GameProps {
   day: string
   species: Species
   level: Level
-  hard: boolean
+  variant: Variant
   showFigures: boolean
   sound: boolean
   toast: (msg: string) => void
@@ -30,16 +31,16 @@ interface GameProps {
 }
 
 export function Game(props: GameProps) {
-  const { day, species, level, hard } = props
+  const { day, species, level, variant } = props
   const [puzzle, setPuzzle] = useState<Puzzle | null>(null)
   useEffect(() => {
     let live = true
     setPuzzle(null)
-    void loadPuzzle(day, species, level, hard).then((p) => live && setPuzzle(p))
+    void loadPuzzle(day, species, level, variant).then((p) => live && setPuzzle(p))
     return () => {
       live = false
     }
-  }, [day, species, level, hard])
+  }, [day, species, level, variant])
   if (!puzzle) return <p className="composing">Composing a cantus firmus…</p>
   return <Board key={puzzle.key} puzzle={puzzle} {...props} />
 }
@@ -58,9 +59,10 @@ function tonesFor(ctx: Context, notes: readonly (number | null)[]): Tone[] {
   return [...cf, ...cp]
 }
 
-function Board({ puzzle, hard, showFigures, sound, toast, share, onNavigate }: GameProps & { puzzle: Puzzle }) {
+function Board({ puzzle, day, variant, showFigures, sound, toast, share, onNavigate }: GameProps & { puzzle: Puzzle }) {
   const ctx = useMemo(() => analyze(puzzle.exercise), [puzzle])
   const { given, species, level } = puzzle
+  const { rules } = puzzle.exercise
   const blanks = useMemo(() => given.flatMap((g, i) => (g === null ? [i] : [])), [given])
   const [state, setState] = useState<GameState>(
     () => loadGame(puzzle.key) ?? { notes: [...given], marks: given.map(() => null), attempts: [], status: 'playing' },
@@ -143,7 +145,7 @@ function Board({ puzzle, hard, showFigures, sound, toast, share, onNavigate }: G
     const status = violations.length === 0 ? 'won' : attempts.length >= MAX_CHECKS ? 'lost' : 'playing'
     setState({ ...state, marks, attempts, status })
     if (status !== 'playing') setSelected(null)
-    if (status === 'won') toast(PRAISE[rulebook(species)][attempts.length % 4])
+    if (status === 'won') toast(PRAISE[rules][attempts.length % 4])
   }
 
   const togglePlay = () => {
@@ -203,11 +205,10 @@ function Board({ puzzle, hard, showFigures, sound, toast, share, onNavigate }: G
 
   const shareResult = () => {
     const result = state.status === 'won' ? `${state.attempts.length}/${MAX_CHECKS}` : `X/${MAX_CHECKS}`
-    const title = [`Counterpointle #${dayNumber(puzzle.key.split('/')[0])}`, hard && 'Hard', `Species ${ROMAN[species]}`, `Level ${level}`, result]
     const text = [
-      title.filter(Boolean).join(' · '),
+      [gameTitle(day, variant), `Species ${ROMAN[species]}`, `Level ${level}`, result].join(' · '),
       ...state.attempts.map((a) => a.bars.map((m) => SQUARE[m]).join('')),
-      location.origin,
+      siteUrl(),
     ].join('\n')
     share(text)
   }
@@ -297,11 +298,11 @@ function Board({ puzzle, hard, showFigures, sound, toast, share, onNavigate }: G
                 {reveal ? 'Show my attempt' : 'Show a solution'}
               </button>
             )}
-            {level < 5 ? (
+            {level < LEVELS.length ? (
               <button className="ghost-btn" onClick={() => onNavigate(species, (level + 1) as Level)}>
                 Level {level + 1} →
               </button>
-            ) : species < 5 ? (
+            ) : speciesFor(variant).includes((species + 1) as Species) ? (
               <button className="ghost-btn" onClick={() => onNavigate((species + 1) as Species, 1)}>
                 Species {ROMAN[species + 1]} →
               </button>
@@ -353,17 +354,17 @@ function Board({ puzzle, hard, showFigures, sound, toast, share, onNavigate }: G
           Rules for {info.name.toLowerCase()} <span className="dim">· {info.tagline.toLowerCase()}</span>
         </summary>
         <ul>
-          {info.rules.map((r) => (
+          {(rules === 'ap' ? (AP_SPECIES_RULES[species] ?? info.rules) : info.rules).map((r) => (
             <li key={r}>{r}</li>
           ))}
         </ul>
         <h4>Always</h4>
         <ul>
-          {GENERAL_RULES[rulebook(species)].map((r) => (
+          {GENERAL_RULES[rules].map((r) => (
             <li key={r}>{r}</li>
           ))}
         </ul>
-        <p className="dim small">Following {RULEBOOK_NAME[rulebook(species)]}.</p>
+        <p className="dim small">Following {RULEBOOK_NAME[rules]}.</p>
       </details>
     </section>
   )

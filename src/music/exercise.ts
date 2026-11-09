@@ -1,3 +1,4 @@
+import type { Rulebook } from './rules'
 import { degree, finalStep, keyAlter, letterOf, raisesLeadingTone, type Key, type Pitch } from './theory'
 
 export type Species = 1 | 2 | 3 | 4 | 5
@@ -13,6 +14,7 @@ export interface Slot {
 
 export interface Exercise {
   species: Species
+  rules: Rulebook
   key: Key
   /** Counterpoint above the cantus firmus, or below it. */
   cpAbove: boolean

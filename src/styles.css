@@ -110,6 +110,19 @@ a {
   color: var(--gold);
 }
 
+.wordmark small {
+  margin-left: 8px;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: var(--ink);
+  color: var(--paper);
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  vertical-align: 6px;
+}
+
 .settings {
   display: flex;
   gap: 2px;

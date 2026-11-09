@@ -1,4 +1,4 @@
-import { makePuzzle, type Level } from './music/generate'
+import { makePuzzle, type Level, type Variant } from './music/generate'
 import type { Species } from './music/exercise'
 
 export interface PuzzleRequest {
@@ -6,10 +6,10 @@ export interface PuzzleRequest {
   day: string
   species: Species
   level: Level
-  hard: boolean
+  variant: Variant
 }
 
 self.onmessage = (e: MessageEvent<PuzzleRequest>) => {
-  const { id, day, species, level, hard } = e.data
-  self.postMessage({ id, puzzle: makePuzzle(day, species, level, hard) })
+  const { id, day, species, level, variant } = e.data
+  self.postMessage({ id, puzzle: makePuzzle(day, species, level, variant) })
 }

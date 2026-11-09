@@ -17,7 +17,7 @@ export function Help({ open, onClose }: { open: boolean; onClose: () => void }) 
         </button>
         <h2>How to play</h2>
         <p>
-          Every day brings one puzzle for each of five levels in each of the five species of counterpoint. Each gives you a{' '}
+          Every day brings three levels for each species of counterpoint. Each puzzle gives you a{' '}
           <em>cantus firmus</em> (the whole notes) and a counterpoint line with some notes missing. Write the missing notes.
         </p>
         <p>
@@ -45,14 +45,17 @@ export function Help({ open, onClose }: { open: boolean; onClose: () => void }) 
           <li>On a keyboard: ← → pick a blank, ↑ ↓ move it (Shift jumps an octave), Delete erases, Enter checks, Space plays.</li>
           <li>The numbers under the staff are the intervals against the cantus. Turn them off with the 5·6 button for an extra challenge.</li>
         </ul>
-        <h3>Difficulty</h3>
+        <h3>Two versions</h3>
         <p>
-          Puzzles are in C major. <strong>Hard</strong> is a separate set of puzzles in other keys and in the Dorian, Mixolydian
-          and minor modes. There the leading tone is raised for you in the second-to-last bar.
+          This site plays strict species counterpoint after Fux's <em>Gradus ad Parnassum</em> (1725), in all five species.{' '}
+          <a href="/ap">Counterpointle AP</a> uses the voice-leading rules of the AP Music Theory course instead: looser
+          about hidden fifths, strict about the leading tone, and only first and second species, the part of counterpoint
+          the exam asks you to write.
         </p>
-        <p className="dim small">
-          Species I and II follow the voice-leading rules of the AP Music Theory course. Species III–V follow Fux's{' '}
-          <em>Gradus ad Parnassum</em> (1725). Each puzzle's rules are listed under the score.
+        <p>
+          Puzzles are in C major. <strong>Hard</strong> is a separate set in other keys and in the Dorian, Mixolydian and
+          minor modes. There the leading tone is raised for you in the second-to-last bar. Each puzzle lists its rules under
+          the score.
         </p>
       </div>
     </dialog>
