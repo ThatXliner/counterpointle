@@ -888,3 +888,9 @@ footer {
     animation: none !important;
   }
 }
+
+.help-body .help-foot {
+  margin-top: 14px;
+  font-size: 0.9em;
+  color: var(--muted);
+}
