@@ -379,15 +379,20 @@ a {
   overflow: hidden;
 }
 
+.staff-wrap {
+  position: relative;
+}
+
 .staff-scroll {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   padding: 0 8px;
 }
 
+/* Swipe sideways anywhere but on a note you're writing, where a drag moves the note. */
 .staff {
   display: block;
-  touch-action: none;
+  touch-action: pan-x;
   user-select: none;
   -webkit-user-select: none;
 }
@@ -538,6 +543,34 @@ a {
 .staff .hit {
   fill: transparent;
   cursor: ns-resize;
+  touch-action: none;
+}
+
+.staff-page {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 32px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+  padding: 0 0 3px;
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  background: var(--card);
+  color: var(--ink);
+  font-size: 26px;
+  line-height: 1;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.08);
+  cursor: pointer;
+}
+
+.staff-page.left {
+  left: 6px;
+}
+
+.staff-page.right {
+  right: 6px;
 }
 
 .toolbar {
@@ -697,6 +730,18 @@ a {
 
 .v-melodic .dot {
   background: var(--melodic);
+}
+
+.violations .dead-end {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 8px 0 0;
+  font-size: 17px;
+}
+
+.dead-end .dot {
+  background: var(--ok);
 }
 
 .violations .bar {

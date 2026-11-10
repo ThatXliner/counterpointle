@@ -1,15 +1,15 @@
-import { makePuzzle, type Level, type Variant } from './music/generate'
-import type { Species } from './music/exercise'
+import { analyze, type Exercise, type Species } from './music/exercise'
+import { completable, makePuzzle, type Level, type Variant } from './music/generate'
 
-export interface PuzzleRequest {
-  id: number
-  day: string
-  species: Species
-  level: Level
-  variant: Variant
-}
+export type WorkerRequest =
+  | { kind: 'puzzle'; day: string; species: Species; level: Level; variant: Variant }
+  | { kind: 'completable'; exercise: Exercise; fixed: (number | null)[] }
 
-self.onmessage = (e: MessageEvent<PuzzleRequest>) => {
-  const { id, day, species, level, variant } = e.data
-  self.postMessage({ id, puzzle: makePuzzle(day, species, level, variant) })
+self.onmessage = (e: MessageEvent<{ id: number; req: WorkerRequest }>) => {
+  const { id, req } = e.data
+  const result =
+    req.kind === 'puzzle'
+      ? makePuzzle(req.day, req.species, req.level, req.variant)
+      : completable(analyze(req.exercise), req.fixed)
+  self.postMessage({ id, result })
 }

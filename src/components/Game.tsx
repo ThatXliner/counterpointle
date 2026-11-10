@@ -5,7 +5,7 @@ import { analyze, BAR, cfPitch, cpPitch, type Context, type Species } from '../m
 import type { Level, Puzzle, Variant } from '../music/generate'
 import { validate, type Violation } from '../music/rules'
 import { keyName, midi, pitchName } from '../music/theory'
-import { LEVELS, loadPuzzle, MAX_CHECKS, siteUrl, speciesFor } from '../puzzles'
+import { canComplete, LEVELS, loadPuzzle, MAX_CHECKS, siteUrl, speciesFor } from '../puzzles'
 import { loadGame, saveGame, type Attempt, type GameState, type Mark } from '../storage'
 import { gameTitle } from './Home'
 import { Staff } from './Staff'
@@ -145,7 +145,16 @@ function Board({ puzzle, day, variant, showFigures, sound, toast, share, onNavig
     const status = violations.length === 0 ? 'won' : attempts.length >= MAX_CHECKS ? 'lost' : 'playing'
     setState({ ...state, marks, attempts, status })
     if (status !== 'playing') setSelected(null)
-    if (status === 'won') toast(PRAISE[rules][attempts.length % 4])
+    if (status === 'won') return toast(PRAISE[rules][attempts.length % 4])
+    // Green notes can each be fine and still rule each other out. Ask whether any answer keeps them all.
+    const kept = state.notes.map((n, i) => (marks[i] === null || marks[i] === 'ok' ? n : null))
+    // Hard mode leaves that for the player to work out.
+    if (variant.hard || !blanks.some((i) => kept[i] !== null)) return
+    const at = attempts.length - 1
+    void canComplete(puzzle.exercise, kept).then((ok) => {
+      if (ok !== false) return
+      setState((s) => (s.attempts[at] ? { ...s, attempts: s.attempts.map((a, k) => (k === at ? { ...a, deadEnd: true } : a)) } : s))
+    })
   }
 
   const togglePlay = () => {
@@ -351,6 +360,12 @@ function Board({ puzzle, day, variant, showFigures, sound, toast, share, onNavig
                   </li>
                 ))}
               </ul>
+              {latest.deadEnd && (
+                <p className="dead-end">
+                  <span className="dot" />
+                  Your green notes can’t all stay. No correct answer keeps every one of them, so at least one has to change too.
+                </p>
+              )}
             </div>
           )}
         </div>

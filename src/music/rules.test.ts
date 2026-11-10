@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { analyze, buildRhythm, cpPitch, type Exercise, type Species } from './exercise'
-import { makePuzzle, type Level, type Variant } from './generate'
+import { completable, makePuzzle, type Level, type Variant } from './generate'
 import { SPECIES_IN, validate, type Rulebook } from './rules'
 import { C_MAJOR, keyName } from './theory'
 
@@ -110,6 +110,22 @@ describe('second species (AP rules)', () => {
     const cp = [null, null, null, null, null, null, 27, 26, null, null, null, null, null]
     const vs = check(2, cp, false, [28, 30, 29, 31, 30, 29, 28])
     expect(rules(vs)).toContain('unequal-fifths')
+  })
+})
+
+describe('completable', () => {
+  const ctx = analyze(exercise('fux', 1, cf, true))
+
+  it('finds a way to finish a good start', () => {
+    expect(completable(ctx, [25, 28, null, null, null, null, null])).toBe(true)
+  })
+
+  it('sees when notes that are each fine rule each other out', () => {
+    // B3 over E3 and D4 over F3 break no rule, but nothing over D3 joins them: C4 and E4 clash,
+    // G3 makes a fourth, A3 parallel fifths, and B3 or D4 a repeat.
+    const fixed = [null, 27, null, 29, null, null, null]
+    expect(validate(ctx, fixed)).toEqual([])
+    expect(completable(ctx, fixed)).toBe(false)
   })
 })
 

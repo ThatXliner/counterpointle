@@ -152,6 +152,37 @@ export function solve(ctx: Context, rand: Rand, budget = 40 * ctx.slots.length):
   return place(0) ? (steps as number[]) : null
 }
 
+/**
+ * Whether the null slots of `fixed` can be filled so that no rule is broken: true, false, or null when the
+ * search ran out of budget. Exhaustive, which works because a rule broken by some notes stays broken however the
+ * rest are filled in, so any violation in a partial answer prunes it.
+ */
+export function completable(ctx: Context, fixed: readonly (number | null)[], budget = 20000): boolean | null {
+  const steps = [...fixed]
+  if (validate(ctx, steps).length) return false
+  const open = steps.flatMap((s, i) => (s === null ? [i] : []))
+  const [lo, hi] = ctx.range
+  let nodes = 0
+
+  const place = (k: number): boolean | null => {
+    if (k === open.length) return true
+    const i = open[k]
+    const ref = steps[i - 1] ?? steps[i + 1] ?? (lo + hi) / 2
+    // Stepwise candidates first: they are the likeliest to lead somewhere.
+    const options = range(lo, hi).sort((a, b) => Math.abs(a - ref) - Math.abs(b - ref))
+    for (const s of options) {
+      if (++nodes > budget) return null
+      steps[i] = s
+      if (validate(ctx, steps).length) continue
+      const found = place(k + 1)
+      if (found !== false) return found
+    }
+    steps[i] = null
+    return false
+  }
+  return place(0)
+}
+
 const SIGNATURES = [-3, -2, -1, 0, 1, 2, 3]
 
 /** Normal puzzles are all in C major. Hard ones pick any of the four modes in a key of up to three sharps or flats. */

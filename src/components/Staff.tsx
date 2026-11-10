@@ -151,15 +151,33 @@ export function Staff({ ctx, notes, given, marks, selected, editable, showFigure
   const dragging = useRef<number | null>(null)
   const [hover, setHover] = useState<{ slot: number; step: number } | null>(null)
   const [available, setAvailable] = useState(0)
+  const [more, setMore] = useState({ left: false, right: false })
+
+  const measure = () => {
+    const el = scrollRef.current
+    if (!el) return
+    const left = el.scrollLeft > 4
+    const right = el.scrollLeft + el.clientWidth < el.scrollWidth - 4
+    setMore((m) => (m.left === left && m.right === right ? m : { left, right }))
+  }
 
   useEffect(() => {
     const el = scrollRef.current
     if (!el) return
-    const observer = new ResizeObserver(() => setAvailable(el.clientWidth - 16))
+    const observer = new ResizeObserver(() => {
+      setAvailable(el.clientWidth - 16)
+      measure()
+    })
     observer.observe(el)
     return () => observer.disconnect()
   }, [])
+
+  const page = (dir: 1 | -1) => {
+    const el = scrollRef.current
+    el?.scrollBy({ left: dir * el.clientWidth * 0.75, behavior: 'smooth' })
+  }
   const scale = available ? Math.min(MAX_SCALE, Math.max(1, available / layout.width)) : MAX_SCALE
+  useEffect(measure, [layout, scale])
 
   const cpStaff: StaffName = ctx.ex.cpAbove ? 'treble' : 'bass'
   const cfStaff: StaffName = ctx.ex.cpAbove ? 'bass' : 'treble'
@@ -237,152 +255,164 @@ export function Staff({ ctx, notes, given, marks, selected, editable, showFigure
   const mid = yOf(MIDDLE_STEP[cpStaff], cpStaff)
 
   return (
-    <div className="staff-scroll" ref={scrollRef}>
-      <svg
-        ref={svgRef}
-        className="staff"
-        viewBox={`0 0 ${layout.width} ${HEIGHT}`}
-        width={layout.width * scale}
-        height={HEIGHT * scale}
-        role="img"
-        aria-label="Score: cantus firmus and counterpoint"
-        onPointerLeave={() => setHover(null)}
-      >
-        {selected !== null &&
-          segments
-            .filter((g) => g.slot === selected)
-            .map((g) => <rect key={`sel${g.time}`} className="selection" x={x(g.time) - 14} y={20} width={28} height={HEIGHT - 34} rx={8} />)}
-
-        {staffLines('treble')}
-        {staffLines('bass')}
-        <line className="barline" x1={4} x2={4} y1={TOP.treble} y2={TOP.bass + 40} />
-        <text className="clef" x={10} y={yOf(32, 'treble') + 10}>𝄞</text>
-        <text className="clef" x={10} y={yOf(24, 'bass') + 27}>𝄢</text>
-        {(['treble', 'bass'] as const).flatMap((staff) => {
-          const { sig } = ctx.ex.key
-          const steps = (sig > 0 ? SIG_STEPS.sharp : SIG_STEPS.flat).slice(0, Math.abs(sig))
-          return steps.map((step, k) => (
-            <text key={`${staff}sig${k}`} className="accidental keysig" x={CLEF_W - 6 + k * SIG_W} y={yOf(staff === 'treble' ? step : step - 14, staff) + 5}>
-              {sig > 0 ? '♯' : '♭'}
+    <div className="staff-wrap">
+      <div className="staff-scroll" ref={scrollRef} onScroll={measure}>
+        <svg
+          ref={svgRef}
+          className="staff"
+          viewBox={`0 0 ${layout.width} ${HEIGHT}`}
+          width={layout.width * scale}
+          height={HEIGHT * scale}
+          role="img"
+          aria-label="Score: cantus firmus and counterpoint"
+          onPointerLeave={() => setHover(null)}
+        >
+          {selected !== null &&
+            segments
+              .filter((g) => g.slot === selected)
+              .map((g) => <rect key={`sel${g.time}`} className="selection" x={x(g.time) - 14} y={20} width={28} height={HEIGHT - 34} rx={8} />)}
+  
+          {staffLines('treble')}
+          {staffLines('bass')}
+          <line className="barline" x1={4} x2={4} y1={TOP.treble} y2={TOP.bass + 40} />
+          <text className="clef" x={10} y={yOf(32, 'treble') + 10}>𝄞</text>
+          <text className="clef" x={10} y={yOf(24, 'bass') + 27}>𝄢</text>
+          {(['treble', 'bass'] as const).flatMap((staff) => {
+            const { sig } = ctx.ex.key
+            const steps = (sig > 0 ? SIG_STEPS.sharp : SIG_STEPS.flat).slice(0, Math.abs(sig))
+            return steps.map((step, k) => (
+              <text key={`${staff}sig${k}`} className="accidental keysig" x={CLEF_W - 6 + k * SIG_W} y={yOf(staff === 'treble' ? step : step - 14, staff) + 5}>
+                {sig > 0 ? '♯' : '♭'}
+              </text>
+            ))
+          })}
+          {layout.barX.map((bx, b) => (
+            <text key={`n${b}`} className="bar-number" x={bx + 3} y={TOP.treble - 26}>
+              {b + 1}
             </text>
-          ))
-        })}
-        {layout.barX.map((bx, b) => (
-          <text key={`n${b}`} className="bar-number" x={bx + 3} y={TOP.treble - 26}>
-            {b + 1}
-          </text>
-        ))}
-        {layout.barX.map((bx, b) => {
-          const end = bx + layout.barW[b]
-          const final = b === ctx.bars - 1
-          return (
-            <g key={`b${b}`}>
-              <line className="barline" x1={final ? end - 10 : end} x2={final ? end - 10 : end} y1={TOP.treble} y2={TOP.bass + 40} />
-              {final && <rect className="barline-heavy" x={end - 6} y={TOP.treble} width={4} height={TOP.bass + 40 - TOP.treble} />}
-            </g>
-          )
-        })}
-
-        {/* Cantus firmus */}
-        {ctx.ex.cf.map((step, b) => {
-          const cx = x(b * BAR)
-          return (
-            <g key={`cf${b}`}>
-              {ledgerLines(cx, step, cfStaff, `cf${b}`)}
-              <Head x={cx} y={yOf(step, cfStaff)} dur={8} stem={null} className="note cantus" />
-            </g>
-          )
-        })}
-
-        {restTime > 0 && <rect className="rest" x={x(0) - 6} y={mid - 5} width={12} height={5} />}
-
-        {/* Counterpoint */}
-        {segments.map((g, k) => {
-          const step = notes[g.slot]
-          const cx = x(g.time)
-          if (step == null) {
-            const isSel = g.slot === selected
-            return <Head key={`g${k}`} x={cx} y={mid} dur={g.dur} stem={null} dashed className={`ghost${isSel ? ' active' : ''}`} />
-          }
-          const y = yOf(step, cpStaff)
-          const stem = beamed.has(g.slot) ? null : stemFor(step, cpStaff, g.dur)
-          const second = g.time !== ctx.slots[g.slot].start
-          const nextSeg = segments[k + 1]
-          return (
-            <g key={`n${k}`}>
-              {ledgerLines(cx, step, cpStaff, `n${k}`)}
-              {accidentals.has(g.slot) && !second && (
-                <text className={`accidental ${noteClass(g.slot)}`} x={cx - 17} y={y + 5}>
-                  {accidentals.get(g.slot)}
-                </text>
-              )}
-              <Head x={cx} y={y} dur={g.dur} stem={stem} className={noteClass(g.slot)} />
-              {g.dur === 1 && !beamed.has(g.slot) && stem && (
-                <path className={`flag ${noteClass(g.slot)}`} d={stem === 'up' ? `M${cx + 5.7} ${y - 34} q2 9 9 14 q-3 -5 -9 -8` : `M${cx - 5.7} ${y + 34} q2 -9 9 -14 q-3 5 -9 8`} />
-              )}
-              {g.tieNext && nextSeg && (
-                <path
-                  className={`tie ${noteClass(g.slot)}`}
-                  d={(() => {
-                    const x2 = x(nextSeg.time)
-                    const dir = stem === 'up' ? 1 : -1
-                    const y0 = y + dir * 6
-                    return `M${cx + 6} ${y0} Q${(cx + x2) / 2} ${y0 + dir * 11} ${x2 - 6} ${y0} Q${(cx + x2) / 2} ${y0 + dir * 8} ${cx + 6} ${y0}`
-                  })()}
-                />
-              )}
-            </g>
-          )
-        })}
-        {beams}
-
-        {hover && notes[hover.slot] !== hover.step &&
-          segments
-            .filter((g) => g.slot === hover.slot)
-            .map((g) => (
-              <g key={`h${g.time}`} className="preview">
-                {ledgerLines(x(g.time), hover.step, cpStaff, `h${g.time}`)}
-                <Head x={x(g.time)} y={yOf(hover.step, cpStaff)} dur={g.dur} stem={null} className="note" />
-              </g>
-            ))}
-
-        {figures}
-
-        {playTime !== null && <line className="playhead" x1={x(playTime)} x2={x(playTime)} y1={24} y2={HEIGHT - 20} />}
-
-        {/* Hit areas for writable notes */}
-        {editable &&
-          segments.map((g, k) => {
-            if (given[g.slot] !== null) return null
-            const cx = x(g.time)
-            const gaps = [segments[k - 1], segments[k + 1]].filter(Boolean).map((o) => Math.abs(x(o!.time) - cx))
-            const w = Math.min(36, Math.max(18, Math.min(...gaps, 36)))
-            const top = yOf(hi, cpStaff) - 8
+          ))}
+          {layout.barX.map((bx, b) => {
+            const end = bx + layout.barW[b]
+            const final = b === ctx.bars - 1
             return (
-              <rect
-                key={`hit${k}`}
-                className="hit"
-                x={cx - w / 2}
-                y={top}
-                width={w}
-                height={yOf(lo, cpStaff) + 8 - top}
-                onPointerDown={(e) => {
-                  e.currentTarget.setPointerCapture(e.pointerId)
-                  dragging.current = g.slot
-                  onPick(g.slot, stepFromEvent(e))
-                }}
-                onPointerMove={(e) => {
-                  const step = stepFromEvent(e)
-                  if (dragging.current === g.slot) {
-                    if (notes[g.slot] !== step) onPick(g.slot, step)
-                  } else if (e.pointerType === 'mouse') setHover({ slot: g.slot, step })
-                }}
-                onPointerUp={() => (dragging.current = null)}
-                onPointerLeave={() => setHover(null)}
-              />
+              <g key={`b${b}`}>
+                <line className="barline" x1={final ? end - 10 : end} x2={final ? end - 10 : end} y1={TOP.treble} y2={TOP.bass + 40} />
+                {final && <rect className="barline-heavy" x={end - 6} y={TOP.treble} width={4} height={TOP.bass + 40 - TOP.treble} />}
+              </g>
             )
           })}
-      </svg>
+  
+          {/* Cantus firmus */}
+          {ctx.ex.cf.map((step, b) => {
+            const cx = x(b * BAR)
+            return (
+              <g key={`cf${b}`}>
+                {ledgerLines(cx, step, cfStaff, `cf${b}`)}
+                <Head x={cx} y={yOf(step, cfStaff)} dur={8} stem={null} className="note cantus" />
+              </g>
+            )
+          })}
+  
+          {restTime > 0 && <rect className="rest" x={x(0) - 6} y={mid - 5} width={12} height={5} />}
+  
+          {/* Counterpoint */}
+          {segments.map((g, k) => {
+            const step = notes[g.slot]
+            const cx = x(g.time)
+            if (step == null) {
+              const isSel = g.slot === selected
+              return <Head key={`g${k}`} x={cx} y={mid} dur={g.dur} stem={null} dashed className={`ghost${isSel ? ' active' : ''}`} />
+            }
+            const y = yOf(step, cpStaff)
+            const stem = beamed.has(g.slot) ? null : stemFor(step, cpStaff, g.dur)
+            const second = g.time !== ctx.slots[g.slot].start
+            const nextSeg = segments[k + 1]
+            return (
+              <g key={`n${k}`}>
+                {ledgerLines(cx, step, cpStaff, `n${k}`)}
+                {accidentals.has(g.slot) && !second && (
+                  <text className={`accidental ${noteClass(g.slot)}`} x={cx - 17} y={y + 5}>
+                    {accidentals.get(g.slot)}
+                  </text>
+                )}
+                <Head x={cx} y={y} dur={g.dur} stem={stem} className={noteClass(g.slot)} />
+                {g.dur === 1 && !beamed.has(g.slot) && stem && (
+                  <path className={`flag ${noteClass(g.slot)}`} d={stem === 'up' ? `M${cx + 5.7} ${y - 34} q2 9 9 14 q-3 -5 -9 -8` : `M${cx - 5.7} ${y + 34} q2 -9 9 -14 q-3 5 -9 8`} />
+                )}
+                {g.tieNext && nextSeg && (
+                  <path
+                    className={`tie ${noteClass(g.slot)}`}
+                    d={(() => {
+                      const x2 = x(nextSeg.time)
+                      const dir = stem === 'up' ? 1 : -1
+                      const y0 = y + dir * 6
+                      return `M${cx + 6} ${y0} Q${(cx + x2) / 2} ${y0 + dir * 11} ${x2 - 6} ${y0} Q${(cx + x2) / 2} ${y0 + dir * 8} ${cx + 6} ${y0}`
+                    })()}
+                  />
+                )}
+              </g>
+            )
+          })}
+          {beams}
+  
+          {hover && notes[hover.slot] !== hover.step &&
+            segments
+              .filter((g) => g.slot === hover.slot)
+              .map((g) => (
+                <g key={`h${g.time}`} className="preview">
+                  {ledgerLines(x(g.time), hover.step, cpStaff, `h${g.time}`)}
+                  <Head x={x(g.time)} y={yOf(hover.step, cpStaff)} dur={g.dur} stem={null} className="note" />
+                </g>
+              ))}
+  
+          {figures}
+  
+          {playTime !== null && <line className="playhead" x1={x(playTime)} x2={x(playTime)} y1={24} y2={HEIGHT - 20} />}
+  
+          {/* Hit areas for writable notes */}
+          {editable &&
+            segments.map((g, k) => {
+              if (given[g.slot] !== null) return null
+              const cx = x(g.time)
+              const gaps = [segments[k - 1], segments[k + 1]].filter(Boolean).map((o) => Math.abs(x(o!.time) - cx))
+              const w = Math.min(36, Math.max(18, Math.min(...gaps, 36)))
+              const top = yOf(hi, cpStaff) - 8
+              return (
+                <rect
+                  key={`hit${k}`}
+                  className="hit"
+                  x={cx - w / 2}
+                  y={top}
+                  width={w}
+                  height={yOf(lo, cpStaff) + 8 - top}
+                  onPointerDown={(e) => {
+                    e.currentTarget.setPointerCapture(e.pointerId)
+                    dragging.current = g.slot
+                    onPick(g.slot, stepFromEvent(e))
+                  }}
+                  onPointerMove={(e) => {
+                    const step = stepFromEvent(e)
+                    if (dragging.current === g.slot) {
+                      if (notes[g.slot] !== step) onPick(g.slot, step)
+                    } else if (e.pointerType === 'mouse') setHover({ slot: g.slot, step })
+                  }}
+                  onPointerUp={() => (dragging.current = null)}
+                  onPointerLeave={() => setHover(null)}
+                />
+              )
+            })}
+        </svg>
+      </div>
+      {more.left && (
+        <button className="staff-page left" onClick={() => page(-1)} aria-label="Earlier bars">
+          ‹
+        </button>
+      )}
+      {more.right && (
+        <button className="staff-page right" onClick={() => page(1)} aria-label="Later bars">
+          ›
+        </button>
+      )}
     </div>
   )
 }

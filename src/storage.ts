@@ -7,6 +7,8 @@ export interface Attempt {
   /** Worst mark per bar that held a blank, for the share grid. */
   bars: Mark[]
   violations: Violation[]
+  /** No correct answer keeps every note this check marked green. */
+  deadEnd?: boolean
 }
 
 export interface GameState {
