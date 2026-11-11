@@ -33,14 +33,20 @@ interface GameProps {
 export function Game(props: GameProps) {
   const { day, species, level, variant } = props
   const [puzzle, setPuzzle] = useState<Puzzle | null>(null)
+  const [failed, setFailed] = useState(false)
   useEffect(() => {
     let live = true
     setPuzzle(null)
-    void loadPuzzle(day, species, level, variant).then((p) => live && setPuzzle(p))
+    setFailed(false)
+    loadPuzzle(day, species, level, variant).then(
+      (p) => live && setPuzzle(p),
+      () => live && setFailed(true),
+    )
     return () => {
       live = false
     }
   }, [day, species, level, variant])
+  if (failed) return <p className="composing">This cantus firmus wouldn’t come together. Reload to try again.</p>
   if (!puzzle) return <p className="composing">Composing a cantus firmus…</p>
   return <Board key={puzzle.key} puzzle={puzzle} {...props} />
 }

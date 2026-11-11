@@ -30,6 +30,12 @@ export function App() {
     window.addEventListener('hashchange', onHash)
     return () => window.removeEventListener('hashchange', onHash)
   }, [])
+  // A tab left open overnight should wake up on the new day's puzzles.
+  useEffect(() => {
+    const onShow = () => document.visibilityState === 'visible' && currentDay() !== day && location.reload()
+    document.addEventListener('visibilitychange', onShow)
+    return () => document.removeEventListener('visibilitychange', onShow)
+  }, [day])
   useEffect(() => {
     const id = setTimeout(() => prefetchDay(day, variant), 400)
     return () => clearTimeout(id)

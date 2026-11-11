@@ -1,7 +1,7 @@
 import type { Exercise, Species } from './music/exercise'
 import { puzzleKey, type Level, type Puzzle, type Variant } from './music/generate'
 import { SPECIES_IN, type Rulebook } from './music/rules'
-import type { WorkerRequest } from './worker'
+import type { WorkerReply, WorkerRequest } from './worker'
 
 export const LEVELS: readonly Level[] = [1, 2, 3]
 export const speciesFor = (variant: Variant): readonly Species[] => SPECIES_IN[variant.rules]
@@ -33,25 +33,53 @@ export function dayNumber(day: string): number {
 export { puzzleKey }
 
 // Two workers: one answers whatever the player opens, the other quietly composes the rest of the day.
-const workers = { now: spawn(), later: spawn() }
-const pending = new Map<number, (result: unknown) => void>()
+type Lane = 'now' | 'later'
+interface Pending {
+  lane: Lane
+  req: WorkerRequest
+  resolve: (result: unknown) => void
+  reject: (err: Error) => void
+}
+const workers: Record<Lane, Worker> = { now: spawn('now'), later: spawn('later') }
+const pending = new Map<number, Pending>()
 const cache = new Map<string, Promise<Puzzle>>()
 let nextId = 0
 
-function spawn(): Worker {
+// iOS can kill a backgrounded page's workers without telling it, so a lane that goes quiet with work
+// outstanding gets a fresh worker and its queue resent. No single job takes anywhere near this long.
+const STALL_MS = 5000
+const watchdogs: Partial<Record<Lane, ReturnType<typeof setTimeout>>> = {}
+
+function spawn(lane: Lane): Worker {
   const w = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' })
-  w.onmessage = (e: MessageEvent<{ id: number; result: unknown }>) => {
-    pending.get(e.data.id)?.(e.data.result)
+  w.onmessage = (e: MessageEvent<WorkerReply>) => {
+    const job = pending.get(e.data.id)
     pending.delete(e.data.id)
+    if (job) 'error' in e.data ? job.reject(new Error(e.data.error)) : job.resolve(e.data.result)
+    watch(lane)
   }
   return w
 }
 
-function ask<T>(worker: Worker, req: WorkerRequest): Promise<T> {
-  return new Promise((resolve) => {
+function restart(lane: Lane) {
+  workers[lane].terminate()
+  workers[lane] = spawn(lane)
+  for (const [id, job] of pending) if (job.lane === lane) workers[lane].postMessage({ id, req: job.req })
+  watch(lane)
+}
+
+function watch(lane: Lane) {
+  clearTimeout(watchdogs[lane])
+  if ([...pending.values()].some((job) => job.lane === lane)) watchdogs[lane] = setTimeout(() => restart(lane), STALL_MS)
+}
+
+function ask<T>(lane: Lane, req: WorkerRequest): Promise<T> {
+  return new Promise((resolve, reject) => {
     const id = nextId++
-    pending.set(id, resolve as (result: unknown) => void)
-    worker.postMessage({ id, req })
+    const idle = ![...pending.values()].some((job) => job.lane === lane)
+    pending.set(id, { lane, req, resolve: resolve as (result: unknown) => void, reject })
+    workers[lane].postMessage({ id, req })
+    if (idle) watch(lane)
   })
 }
 
@@ -71,7 +99,7 @@ export function loadPuzzle(day: string, species: Species, level: Level, variant:
   const saved = stored(key)
   const promise = saved
     ? Promise.resolve(saved)
-    : ask<Puzzle>(urgent ? workers.now : workers.later, { kind: 'puzzle', day, species, level, variant }).then((p) => {
+    : ask<Puzzle>(urgent ? 'now' : 'later', { kind: 'puzzle', day, species, level, variant }).then((p) => {
         try {
           localStorage.setItem(`cptl:v3:puzzle:${key}`, JSON.stringify(p))
         } catch {
@@ -79,13 +107,15 @@ export function loadPuzzle(day: string, species: Species, level: Level, variant:
         }
         return p
       })
+  // A failed puzzle is not remembered, so opening it again tries again.
+  promise.catch(() => cache.delete(key))
   cache.set(key, promise)
   return promise
 }
 
 /** Whether some answer keeps every note in `fixed`; null when the search gave up first. */
 export const canComplete = (exercise: Exercise, fixed: (number | null)[]) =>
-  ask<boolean | null>(workers.now, { kind: 'completable', exercise, fixed })
+  ask<boolean | null>('now', { kind: 'completable', exercise, fixed })
 
 export function prefetchDay(day: string, variant: Variant) {
   for (const s of speciesFor(variant)) for (const l of LEVELS) void loadPuzzle(day, s, l, variant, false)
