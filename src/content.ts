@@ -81,7 +81,7 @@ export const GENERAL_RULES: Record<Rulebook, string[]> = {
     'A leading tone that belongs to the harmony (a consonance) rises by step to the tonic, and is never doubled.',
     'No more than three thirds or three sixths in a row.',
     'The upper voice moves by seconds, thirds, perfect fourths and fifths. The bass may also leap a sixth or an octave (then turn back), or fall a diminished fifth (then step up).',
-    'Two leaps in one direction must outline a triad. A note may repeat only from a downbeat.',
+    'Two leaps in one direction must outline a triad. Below the cantus, a repeated note must start on a downbeat, except at the very start.',
   ],
   fux: [
     ...FRAME,

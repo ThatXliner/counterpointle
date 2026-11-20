@@ -271,9 +271,10 @@ export function validate(ctx: Context, steps: Steps): Violation[] {
     if (!known(i - 1) || !known(i)) continue
     const [a, b] = [pitch(i - 1), pitch(i)]
     if (a.step === b.step && a.alter === b.alter) {
-      // AP (PIT-3.D.3): a note may repeat only from a strong beat.
+      // AP: upper voices keep common tones freely (PIT-4.A.3); a repeated bass note starts on a strong beat,
+      // or anywhere at the start of the phrase (PIT-3.D.3).
       if (!ap) add('repeat', 'Repeated note', [i - 1, i])
-      else if (slots[i - 1].offset !== 0) add('repeat', 'A repeated note must start on a downbeat', [i - 1, i])
+      else if (!ex.cpAbove && i > 1 && slots[i - 1].offset !== 0) add('repeat', 'A repeated bass note must start on a downbeat', [i - 1, i])
     } else {
       const problem = ap ? apMelodicProblem(a, b, !ex.cpAbove) : melodicProblem(a, b)
       if (problem) add('interval', `${ap ? 'Melodic interval not allowed' : 'Unsingable leap'}: ${problem}`, [i - 1, i])

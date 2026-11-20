@@ -99,10 +99,21 @@ describe('second species (AP rules)', () => {
     expect(rules(check(2, cp, true, [21, 23, 21, 24, 23, 22, 21]))).not.toContain('dissonance')
   })
 
-  it('forbids repeating a note from the weak beat', () => {
-    // G3 (upbeat of bar 1) → G3 (downbeat of bar 2)
-    const cp = [25, 25, null, null, null, null, null, null, null, null, null, null, null]
-    expect(rules(check(2, cp))).toContain('repeat')
+  it('forbids a bass note repeating from the weak beat', () => {
+    // Below C4 E4 D4 F4 …: E3 (upbeat of bar 2) → E3 (downbeat of bar 3)
+    const cp = [null, null, 23, 23, null, null, null, null, null, null, null, null, null]
+    expect(rules(check(2, cp, false, [28, 30, 29, 31, 30, 29, 28]))).toContain('repeat')
+  })
+
+  it('lets a bass note repeat from the opening upbeat', () => {
+    const cp = [21, 21, null, null, null, null, null, null, null, null, null, null, null]
+    expect(rules(check(2, cp, false, [28, 30, 29, 31, 30, 29, 28]))).not.toContain('repeat')
+  })
+
+  it('lets an upper voice repeat from the weak beat', () => {
+    // G3 (upbeat of bar 2) → G3 (downbeat of bar 3)
+    const cp = [null, null, 25, 25, null, null, null, null, null, null, null, null, null]
+    expect(rules(check(2, cp))).not.toContain('repeat')
   })
 
   it('flags unequal fifths', () => {
