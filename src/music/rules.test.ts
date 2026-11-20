@@ -146,7 +146,7 @@ describe('generated puzzles', () => {
     for (const species of SPECIES_IN[variant.rules]) {
       it(`${variant.rules}${variant.hard ? ' hard' : ''} species ${species}: solutions are valid and given notes come from them`, () => {
         for (const day of days) {
-          for (const level of [1, 2, 3] as Level[]) {
+          for (const level of [1, 2] as Level[]) {
             const p = makePuzzle(day, species, level, variant)
             if (!variant.hard) expect(p.exercise.key).toEqual(C_MAJOR)
             expect(p.exercise.rules).toBe(variant.rules)

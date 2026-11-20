@@ -11,7 +11,7 @@ import { loadSetting, saveSetting } from './storage'
 type Route = { species: Species; level: Level } | null
 
 function parseRoute(): Route {
-  const m = location.hash.match(/^#\/([1-5])\/([1-3])$/)
+  const m = location.hash.match(/^#\/([1-5])\/([12])$/)
   return m ? { species: Number(m[1]) as Species, level: Number(m[2]) as Level } : null
 }
 

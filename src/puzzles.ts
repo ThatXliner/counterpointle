@@ -3,7 +3,7 @@ import { puzzleKey, type Level, type Puzzle, type Variant } from './music/genera
 import { SPECIES_IN, type Rulebook } from './music/rules'
 import type { WorkerReply, WorkerRequest } from './worker'
 
-export const LEVELS: readonly Level[] = [1, 2, 3]
+export const LEVELS: readonly Level[] = [1, 2]
 export const speciesFor = (variant: Variant): readonly Species[] => SPECIES_IN[variant.rules]
 export const MAX_CHECKS = 6
 

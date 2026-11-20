@@ -24,7 +24,7 @@ import {
   type Key,
 } from './theory'
 
-export type Level = 1 | 2 | 3
+export type Level = 1 | 2
 
 /** Which daily set a puzzle belongs to. */
 export interface Variant {
@@ -45,13 +45,13 @@ export interface Puzzle {
 }
 
 const BARS: Record<Species, readonly number[]> = {
-  1: [8, 10, 12],
-  2: [8, 9, 11],
-  3: [7, 8, 10],
-  4: [8, 9, 11],
-  5: [7, 8, 10],
+  1: [8, 10],
+  2: [8, 9],
+  3: [7, 8],
+  4: [8, 9],
+  5: [7, 8],
 }
-const BLANK_SHARE = [0.3, 0.6, 1]
+const BLANK_SHARE = [0.3, 0.6]
 
 /**
  * A cantus firmus: starts and ends on the final, approached from the step above, mostly stepwise.

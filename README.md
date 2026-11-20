@@ -3,7 +3,7 @@
 # Counter*point*le
 
 **A daily counterpoint puzzle.** Finish the line against a cantus firmus without breaking the rules.<br>
-Five species, three levels each, and any correct answer counts.
+Five species, two levels each, and any correct answer counts.
 
 **[▶ Play today's puzzles](https://counterpointle.vercel.app)** · [AP Music Theory version](https://counterpointle.vercel.app/ap)
 
@@ -17,7 +17,7 @@ Strict counterpoint works a lot like sudoku. There's a short rulebook, every not
 
 ## How it plays
 
-Each day brings **three levels for each of the five species**, 15 puzzles in all. Every puzzle gives you a cantus firmus (the whole notes) and a counterpoint line with some notes missing. Level 1 leaves a few blanks. Level 3 leaves the whole line to you.
+Each day brings **two levels for each of the five species**, 10 puzzles in all. Every puzzle gives you a cantus firmus (the whole notes) and a counterpoint line with some notes missing. Level 1 leaves a few blanks. Level 2 leaves most of the line to you.
 
 Puzzles are in C major. Flip to **Hard** for a separate daily set in other keys (up to three sharps or flats) and other modes: major, minor, Dorian and Mixolydian, with key signatures and a raised leading tone at the cadence.
 
@@ -54,7 +54,7 @@ Species II · Level 2 · D Mixolydian · 1/6
 | **V** | Florid | All of the above in a mixed rhythm, with eighth notes |
 
 <p align="center">
-  <img src="docs/home.png" alt="The daily board: five species, three levels each" width="560">
+  <img src="docs/home.png" alt="The daily board: five species, two levels each" width="560">
   &nbsp;
   <img src="docs/game-dark.png" alt="A puzzle on a phone in dark mode" width="210">
 </p>

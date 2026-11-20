@@ -71,7 +71,7 @@ export function Home({ day, variant, onHard, onOpen, onShare }: HomeProps) {
         </p>
         <p className="lede">
           Write the missing notes against the cantus firmus. Any line that breaks no rules wins. Level 1 leaves a few
-          blanks; level 3 leaves the whole line to you.
+          blanks; level 2 leaves most of the line to you.
         </p>
       </div>
 
