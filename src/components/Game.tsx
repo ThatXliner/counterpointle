@@ -1,16 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { play, type Tone } from '../audio'
-import { AP_SPECIES_RULES, GENERAL_RULES, ROMAN, RULEBOOK_NAME, SPECIES_INFO } from '../content'
-import { analyze, BAR, cfPitch, cpPitch, type Context, type Species } from '../music/exercise'
+import { play } from '../audio'
+import { ROMAN, SPECIES_INFO } from '../content'
+import { analyze, cfPitch, cpPitch, type Species } from '../music/exercise'
 import type { Level, Puzzle, Variant } from '../music/generate'
 import { validate, type Violation } from '../music/rules'
 import { keyName, midi, pitchName } from '../music/theory'
 import { canComplete, LEVELS, loadPuzzle, MAX_CHECKS, siteUrl, speciesFor } from '../puzzles'
 import { loadGame, saveGame, type Attempt, type GameState, type Mark } from '../storage'
 import { gameTitle } from './Home'
+import { RulesCard } from './RulesCard'
 import { Staff } from './Staff'
-
-const EIGHTH_SECONDS = 0.17
+import { usePlayback } from './usePlayback'
 const SQUARE: Record<Mark, string> = { ok: '🟩', melodic: '🟨', harmonic: '🟥' }
 const RANK: Record<Mark, number> = { ok: 0, melodic: 1, harmonic: 2 }
 const PRAISE = {
@@ -51,18 +51,10 @@ export function Game(props: GameProps) {
   return <Board key={puzzle.key} puzzle={puzzle} {...props} />
 }
 
-function markFor(slot: number, violations: Violation[]): Mark {
+export function markFor(slot: number, violations: Violation[]): Mark {
   const involved = violations.filter((v) => v.slots.includes(slot))
   if (involved.some((v) => v.kind === 'harmonic')) return 'harmonic'
   return involved.length ? 'melodic' : 'ok'
-}
-
-function tonesFor(ctx: Context, notes: readonly (number | null)[]): Tone[] {
-  const cf = ctx.ex.cf.map((_, b) => ({ midi: midi(cfPitch(ctx, b)), at: b * BAR * EIGHTH_SECONDS, dur: BAR * EIGHTH_SECONDS }))
-  const cp = ctx.slots.flatMap((s, i) =>
-    notes[i] == null ? [] : [{ midi: midi(cpPitch(ctx, i, notes[i]!)), at: s.start * EIGHTH_SECONDS, dur: s.dur * EIGHTH_SECONDS }],
-  )
-  return [...cf, ...cp]
 }
 
 function Board({ puzzle, day, variant, showFigures, sound, toast, share, onNavigate }: GameProps & { puzzle: Puzzle }) {
@@ -78,14 +70,12 @@ function Board({ puzzle, day, variant, showFigures, sound, toast, share, onNavig
   )
   const [highlight, setHighlight] = useState<number[]>([])
   const [reveal, setReveal] = useState(false)
-  const [playTime, setPlayTime] = useState<number | null>(null)
-  const stopRef = useRef<(() => void) | null>(null)
 
   useEffect(() => saveGame(puzzle.key, state), [puzzle.key, state])
-  useEffect(() => () => stopRef.current?.(), [])
 
   const editable = state.status === 'playing'
   const notes = reveal ? puzzle.solution : state.notes
+  const { playTime, togglePlay } = usePlayback(ctx, notes)
   const latest = state.attempts[state.attempts.length - 1]
 
   const audition = useCallback(
@@ -161,33 +151,6 @@ function Board({ puzzle, day, variant, showFigures, sound, toast, share, onNavig
       if (ok !== false) return
       setState((s) => (s.attempts[at] ? { ...s, attempts: s.attempts.map((a, k) => (k === at ? { ...a, deadEnd: true } : a)) } : s))
     })
-  }
-
-  const togglePlay = () => {
-    if (stopRef.current) {
-      stopRef.current()
-      stopRef.current = null
-      setPlayTime(null)
-      return
-    }
-    const handle = play(tonesFor(ctx, notes))
-    const total = ctx.bars * BAR
-    let frame = 0
-    const tick = () => {
-      const t = handle.now() / EIGHTH_SECONDS
-      if (t >= total || !stopRef.current) {
-        stopRef.current = null
-        setPlayTime(null)
-        return
-      }
-      setPlayTime(Math.max(0, t))
-      frame = requestAnimationFrame(tick)
-    }
-    stopRef.current = () => {
-      cancelAnimationFrame(frame)
-      handle.stop()
-    }
-    frame = requestAnimationFrame(tick)
   }
 
   const keyHandler = useRef<(e: KeyboardEvent) => void>(() => {})
@@ -377,23 +340,7 @@ function Board({ puzzle, day, variant, showFigures, sound, toast, share, onNavig
         </div>
       )}
 
-      <details className="card rules">
-        <summary>
-          Rules for {info.name.toLowerCase()} <span className="dim">· {info.tagline.toLowerCase()}</span>
-        </summary>
-        <ul>
-          {(rules === 'ap' ? (AP_SPECIES_RULES[species] ?? info.rules) : info.rules).map((r) => (
-            <li key={r}>{r}</li>
-          ))}
-        </ul>
-        <h4>Always</h4>
-        <ul>
-          {GENERAL_RULES[rules].map((r) => (
-            <li key={r}>{r}</li>
-          ))}
-        </ul>
-        <p className="dim small">Following {RULEBOOK_NAME[rules]}.</p>
-      </details>
+      <RulesCard rules={rules} species={species} />
     </section>
   )
 }

@@ -939,3 +939,64 @@ footer {
   font-size: 0.9em;
   color: var(--muted);
 }
+
+/* --- Verifier -------------------------------------------------------------------------------- */
+
+.verifier-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  margin-bottom: 14px;
+}
+
+.picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--sans);
+  font-size: 14px;
+}
+
+.picker select {
+  font: inherit;
+  color: var(--ink);
+  background: var(--card);
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  padding: 6px 8px;
+}
+
+.stepper button {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  border: 1px solid var(--rule);
+  background: var(--card);
+}
+
+.stepper .count {
+  min-width: 22px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.rhythm-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-top: 12px;
+}
+
+.rhythm-picker select {
+  font-family: var(--serif);
+  font-size: 16px;
+}
+
+.verifier .result .violations {
+  margin-top: 4px;
+}
+
+.verifier .result p {
+  margin-bottom: 8px;
+}

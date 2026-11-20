@@ -122,6 +122,7 @@ function pick<T>(rand: Rand, options: readonly (readonly [T, number])[]): T {
 
 /** Rhythm of the counterpoint for a given species and number of bars. */
 export function buildRhythm(species: Species, bars: number, rand: Rand): Slot[] {
+  if (species === 5) return floridSlots(randomFlorid(bars, rand))
   const slots: Slot[] = []
   const last = bars - 1
   const push = (bar: number, offset: number, durs: number[]) => {
@@ -145,15 +146,22 @@ export function buildRhythm(species: Species, bars: number, rand: Rand): Slot[] 
       case 4:
         push(b, 4, [b === last - 1 ? 4 : 8])
         break
-      case 5:
-        floridBar(slots, b, last, rand, push)
-        break
     }
   }
   slots.push({ start: last * BAR, dur: 8 })
   return slots
 }
 
+/** One bar of a florid line: its note values, and whether its last note is tied into the next bar. */
+export interface FloridBar {
+  durs: readonly number[]
+  tie: boolean
+}
+
+const OPENING_BARS: readonly (readonly [number[], number])[] = [
+  [[4], 1],
+  [[2, 2], 1],
+]
 const FREE_BARS: readonly (readonly [number[], number])[] = [
   [[4, 4], 3],
   [[4, 2, 2], 3],
@@ -168,26 +176,45 @@ const TIED_IN_BARS: readonly (readonly [number[], number])[] = [
   [[2, 1, 1], 1],
 ]
 
-function floridBar(
-  slots: Slot[],
-  b: number,
-  last: number,
-  rand: Rand,
-  push: (bar: number, offset: number, durs: number[]) => void,
-) {
-  const prev = slots[slots.length - 1]
-  const tiedIn = prev !== undefined && prev.start + prev.dur > b * BAR
-  // The cadence is always a 7–6 (or 2–3) suspension resolving to the leading tone.
-  if (b === last - 1) return push(b, 4, [4])
-  const mustTieOut = b === last - 2
-  let durs: number[]
-  if (b === 0) durs = mustTieOut ? [4] : pick(rand, [[[4], 1], [[2, 2], 1]] as const)
-  else if (tiedIn) durs = mustTieOut ? [4] : pick(rand, TIED_IN_BARS)
-  else {
-    const options = mustTieOut ? FREE_BARS.filter(([d]) => d[d.length - 1] === 4) : FREE_BARS
-    durs = pick(rand, options)
+/**
+ * The rhythms bar `b` of a florid line may take, with their weights. The opening bar and a bar a tie runs into
+ * start on the weak half. The cadence is always a 7–6 (or 2–3) suspension resolving to the leading tone.
+ */
+export function floridOptions(b: number, last: number, tiedIn: boolean): readonly (readonly [number[], number])[] {
+  if (b === last - 1) return [[[4], 1]]
+  const options = b === 0 ? OPENING_BARS : tiedIn ? TIED_IN_BARS : FREE_BARS
+  return b === last - 2 ? options.filter(([d]) => d[d.length - 1] === 4) : options
+}
+
+/** Whether a bar's last note may be tied over, or must be: only a half note on the weak half can. */
+export function floridTie(b: number, last: number, durs: readonly number[]): 'never' | 'may' | 'must' {
+  if (b === last - 1 || durs[durs.length - 1] !== 4) return 'never'
+  return b === last - 2 ? 'must' : 'may'
+}
+
+function randomFlorid(bars: number, rand: Rand): FloridBar[] {
+  const last = bars - 1
+  const out: FloridBar[] = []
+  for (let b = 0; b < last; b++) {
+    const options = floridOptions(b, last, out[b - 1]?.tie ?? false)
+    const durs = options.length > 1 ? pick(rand, options) : options[0][0]
+    const tie = floridTie(b, last, durs)
+    out.push({ durs, tie: tie === 'must' || (tie === 'may' && rand() < 0.45) })
   }
-  push(b, b === 0 || tiedIn ? 4 : 0, durs)
-  const tail = slots[slots.length - 1]
-  if (tail.dur === 4 && tail.start % BAR === 4 && (mustTieOut || rand() < 0.45)) tail.dur = 8
+  return out
+}
+
+/** Slots of a florid line from the rhythm of every bar but the final whole note. */
+export function floridSlots(rhythm: readonly FloridBar[]): Slot[] {
+  const slots: Slot[] = []
+  rhythm.forEach(({ durs, tie }, b) => {
+    let t = b * BAR + (b === 0 || rhythm[b - 1].tie ? 4 : 0)
+    for (const dur of durs) {
+      slots.push({ start: t, dur })
+      t += dur
+    }
+    if (tie) slots[slots.length - 1].dur = 8
+  })
+  slots.push({ start: rhythm.length * BAR, dur: 8 })
+  return slots
 }

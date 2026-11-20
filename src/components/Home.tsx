@@ -37,7 +37,7 @@ interface SegmentedProps<T extends string | boolean> {
   onChange: (value: T) => void
 }
 
-function Segmented<T extends string | boolean>({ label, value, options, onChange }: SegmentedProps<T>) {
+export function Segmented<T extends string | boolean>({ label, value, options, onChange }: SegmentedProps<T>) {
   return (
     <div className="segmented" role="radiogroup" aria-label={label}>
       {options.map(([v, name, detail]) => (
@@ -56,9 +56,10 @@ interface HomeProps {
   onHard: (hard: boolean) => void
   onOpen: (species: Species, level: Level) => void
   onShare: () => void
+  onVerify: () => void
 }
 
-export function Home({ day, variant, onHard, onOpen, onShare }: HomeProps) {
+export function Home({ day, variant, onHard, onOpen, onShare, onVerify }: HomeProps) {
   const species = speciesFor(variant)
   const cells = species.flatMap((s) => LEVELS.map((l) => cellState(day, s, l, variant)))
   const solved = cells.filter((c) => c.kind === 'won').length
@@ -113,6 +114,12 @@ export function Home({ day, variant, onHard, onOpen, onShare }: HomeProps) {
           </li>
         ))}
       </ol>
+      <p className="dim small">
+        Writing your own exercise?{' '}
+        <a href="#/verify" onClick={(e) => (e.preventDefault(), onVerify())}>
+          Check it against the rules →
+        </a>
+      </p>
       {variant.rules === 'ap' ? (
         <p className="dim small">
           This version follows the voice-leading conventions of the AP Music Theory course. The exam only asks you to write

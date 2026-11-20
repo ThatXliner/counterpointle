@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent, type ReactElement } from 'react'
-import { BAR, cfPitch, cpPitch, type Context } from '../music/exercise'
+import { BAR, cfPitch, cpPitch, LOWER_RANGE, UPPER_RANGE, type Context } from '../music/exercise'
 import { intervalBetween, keyAlter, letterOf } from '../music/theory'
 import type { Mark } from '../storage'
 
@@ -127,9 +127,17 @@ export interface StaffProps {
   /** Playhead position in eighth notes, or null when stopped. */
   playTime: number | null
   onPick: (slot: number, step: number) => void
+  /** Makes the cantus writable too, as in the verifier. Its notes replace ctx.ex.cf; null marks an empty bar. */
+  cantus?: {
+    notes: readonly (number | null)[]
+    selected: number | null
+    onPick: (bar: number, step: number) => void
+  }
 }
 
-export function Staff({ ctx, notes, given, marks, selected, editable, showFigures, highlight, playTime, onPick }: StaffProps) {
+type Voice = 'cf' | 'cp'
+
+export function Staff({ ctx, notes, given, marks, selected, editable, showFigures, highlight, playTime, onPick, cantus }: StaffProps) {
   const segments = useMemo(() => segmentsOf(ctx), [ctx])
   // An accidental shows when a note differs from the key signature, or from an earlier note in the same bar.
   const accidentals = useMemo(() => {
@@ -148,8 +156,8 @@ export function Staff({ ctx, notes, given, marks, selected, editable, showFigure
   const layout = useMemo(() => layoutFor(ctx, segments), [ctx, segments])
   const svgRef = useRef<SVGSVGElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
-  const dragging = useRef<number | null>(null)
-  const [hover, setHover] = useState<{ slot: number; step: number } | null>(null)
+  const dragging = useRef<string | null>(null)
+  const [hover, setHover] = useState<{ voice: Voice; index: number; step: number } | null>(null)
   const [available, setAvailable] = useState(0)
   const [more, setMore] = useState({ left: false, right: false })
 
@@ -181,7 +189,8 @@ export function Staff({ ctx, notes, given, marks, selected, editable, showFigure
 
   const cpStaff: StaffName = ctx.ex.cpAbove ? 'treble' : 'bass'
   const cfStaff: StaffName = ctx.ex.cpAbove ? 'bass' : 'treble'
-  const [lo, hi] = ctx.range
+  const cfRange = ctx.ex.cpAbove ? LOWER_RANGE : UPPER_RANGE
+  const cfNotes = cantus?.notes ?? ctx.ex.cf
   const { x } = layout
 
   useEffect(() => {
@@ -192,13 +201,43 @@ export function Staff({ ctx, notes, given, marks, selected, editable, showFigure
       el.scrollTo({ left: px - el.clientWidth / 2, behavior: 'smooth' })
   }, [selected, ctx, x, scale])
 
-  const stepFromEvent = (e: PointerEvent): number => {
+  const stepFromEvent = (e: PointerEvent, staff: StaffName, [min, max]: readonly [number, number]): number => {
     const svg = svgRef.current!
     const pt = svg.createSVGPoint()
     pt.x = e.clientX
     pt.y = e.clientY
     const local = pt.matrixTransform(svg.getScreenCTM()!.inverse())
-    return Math.min(hi, Math.max(lo, stepAt(local.y, cpStaff)))
+    return Math.min(max, Math.max(min, stepAt(local.y, staff)))
+  }
+
+  /** A tall invisible target over one writable note: press to place it, drag to move it, hover with a mouse to preview. */
+  const hitArea = (voice: Voice, index: number, cx: number, w: number, staff: StaffName, range: readonly [number, number], pick: (step: number) => void) => {
+    const id = `${voice}${index}`
+    const current = voice === 'cp' ? notes[index] : cfNotes[index]
+    const top = yOf(range[1], staff) - 8
+    return (
+      <rect
+        key={`hit${id}${cx}`}
+        className="hit"
+        x={cx - w / 2}
+        y={top}
+        width={w}
+        height={yOf(range[0], staff) + 8 - top}
+        onPointerDown={(e) => {
+          e.currentTarget.setPointerCapture(e.pointerId)
+          dragging.current = id
+          pick(stepFromEvent(e, staff, range))
+        }}
+        onPointerMove={(e) => {
+          const step = stepFromEvent(e, staff, range)
+          if (dragging.current === id) {
+            if (current !== step) pick(step)
+          } else if (e.pointerType === 'mouse') setHover({ voice, index, step })
+        }}
+        onPointerUp={() => (dragging.current = null)}
+        onPointerLeave={() => setHover(null)}
+      />
+    )
   }
 
   const stemFor = (step: number, staff: StaffName, dur: number): 'up' | 'down' | null =>
@@ -241,7 +280,7 @@ export function Staff({ ctx, notes, given, marks, selected, editable, showFigure
 
   const figures = showFigures
     ? ctx.moments.flatMap((m) => {
-        if (m.slot < 0 || notes[m.slot] == null) return []
+        if (m.slot < 0 || notes[m.slot] == null || cfNotes[m.bar] == null) return []
         const iv = intervalBetween(cpPitch(ctx, m.slot, notes[m.slot]!), cfPitch(ctx, m.bar))
         return [
           <text key={`f${m.time}`} className={`figure${iv.consonance === 'dissonant' ? ' dissonant' : ''}`} x={x(m.time)} y={FIGURE_Y} textAnchor="middle">
@@ -302,9 +341,15 @@ export function Staff({ ctx, notes, given, marks, selected, editable, showFigure
             )
           })}
   
+          {cantus?.selected != null && (
+            <rect className="selection" x={x(cantus.selected * BAR) - 14} y={yOf(cfRange[1], cfStaff) - 12} width={28} height={(cfRange[1] - cfRange[0]) * HALF + 24} rx={8} />
+          )}
+
           {/* Cantus firmus */}
-          {ctx.ex.cf.map((step, b) => {
+          {cfNotes.map((step, b) => {
             const cx = x(b * BAR)
+            if (step == null)
+              return <Head key={`cf${b}`} x={cx} y={yOf(MIDDLE_STEP[cfStaff], cfStaff)} dur={8} stem={null} dashed className={`ghost${cantus?.selected === b ? ' active' : ''}`} />
             return (
               <g key={`cf${b}`}>
                 {ledgerLines(cx, step, cfStaff, `cf${b}`)}
@@ -355,9 +400,15 @@ export function Staff({ ctx, notes, given, marks, selected, editable, showFigure
           })}
           {beams}
   
-          {hover && notes[hover.slot] !== hover.step &&
+          {hover?.voice === 'cf' && cfNotes[hover.index] !== hover.step && (
+            <g className="preview">
+              {ledgerLines(x(hover.index * BAR), hover.step, cfStaff, 'hcf')}
+              <Head x={x(hover.index * BAR)} y={yOf(hover.step, cfStaff)} dur={8} stem={null} className="note" />
+            </g>
+          )}
+          {hover?.voice === 'cp' && notes[hover.index] !== hover.step &&
             segments
-              .filter((g) => g.slot === hover.slot)
+              .filter((g) => g.slot === hover.index)
               .map((g) => (
                 <g key={`h${g.time}`} className="preview">
                   {ledgerLines(x(g.time), hover.step, cpStaff, `h${g.time}`)}
@@ -376,31 +427,9 @@ export function Staff({ ctx, notes, given, marks, selected, editable, showFigure
               const cx = x(g.time)
               const gaps = [segments[k - 1], segments[k + 1]].filter(Boolean).map((o) => Math.abs(x(o!.time) - cx))
               const w = Math.min(36, Math.max(18, Math.min(...gaps, 36)))
-              const top = yOf(hi, cpStaff) - 8
-              return (
-                <rect
-                  key={`hit${k}`}
-                  className="hit"
-                  x={cx - w / 2}
-                  y={top}
-                  width={w}
-                  height={yOf(lo, cpStaff) + 8 - top}
-                  onPointerDown={(e) => {
-                    e.currentTarget.setPointerCapture(e.pointerId)
-                    dragging.current = g.slot
-                    onPick(g.slot, stepFromEvent(e))
-                  }}
-                  onPointerMove={(e) => {
-                    const step = stepFromEvent(e)
-                    if (dragging.current === g.slot) {
-                      if (notes[g.slot] !== step) onPick(g.slot, step)
-                    } else if (e.pointerType === 'mouse') setHover({ slot: g.slot, step })
-                  }}
-                  onPointerUp={() => (dragging.current = null)}
-                  onPointerLeave={() => setHover(null)}
-                />
-              )
+              return hitArea('cp', g.slot, cx, w, cpStaff, ctx.range, (step) => onPick(g.slot, step))
             })}
+          {editable && cantus && cfNotes.map((_, b) => hitArea('cf', b, x(b * BAR), 36, cfStaff, cfRange, (step) => cantus.onPick(b, step)))}
         </svg>
       </div>
       {more.left && (

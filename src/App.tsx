@@ -2,17 +2,21 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Game } from './components/Game'
 import { Help } from './components/Help'
 import { Home, shareDay } from './components/Home'
+import { Verifier } from './components/Verifier'
+import { decodeDraft } from './draft'
 import type { Species } from './music/exercise'
 import type { Level, Variant } from './music/generate'
 import { currentDay, prefetchDay, SITE_RULES, speciesFor } from './puzzles'
 import { shareText } from './share'
 import { loadSetting, saveSetting } from './storage'
 
-type Route = { species: Species; level: Level } | null
+type Route = { kind: 'puzzle'; species: Species; level: Level } | { kind: 'verify'; query: string } | null
 
 function parseRoute(): Route {
+  const verify = location.hash.match(/^#\/verify(?:\?(.*))?$/)
+  if (verify) return { kind: 'verify', query: verify[1] ?? '' }
   const m = location.hash.match(/^#\/([1-5])\/([12])$/)
-  return m ? { species: Number(m[1]) as Species, level: Number(m[2]) as Level } : null
+  return m ? { kind: 'puzzle', species: Number(m[1]) as Species, level: Number(m[2]) as Level } : null
 }
 
 export function App() {
@@ -84,7 +88,16 @@ export function App() {
         </div>
       </header>
       <main>
-        {route && speciesFor(variant).includes(route.species) ? (
+        {route?.kind === 'verify' ? (
+          <Verifier
+            key={route.query}
+            initial={decodeDraft(route.query || loadSetting('verifier', ''), SITE_RULES)}
+            showFigures={showFigures}
+            sound={sound}
+            share={share}
+            onBack={() => navigate(1, null)}
+          />
+        ) : route?.kind === 'puzzle' && speciesFor(variant).includes(route.species) ? (
           <Game
             day={day}
             species={route.species}
@@ -103,11 +116,19 @@ export function App() {
             onHard={setHard}
             onOpen={navigate}
             onShare={() => share(shareDay(day, variant))}
+            onVerify={() => {
+              location.hash = '/verify'
+              window.scrollTo({ top: 0 })
+            }}
           />
         )}
       </main>
       <footer className="dim small">
-        {SITE_RULES === 'ap' ? (
+        {route?.kind === 'verify' ? (
+          <>
+            Rules after Fux, <em>Gradus ad Parnassum</em> (1725), and the AP Music Theory Course and Exam Description.{' '}
+          </>
+        ) : SITE_RULES === 'ap' ? (
           <>Rules after the AP Music Theory Course and Exam Description. </>
         ) : (
           <>
