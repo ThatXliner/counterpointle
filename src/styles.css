@@ -582,6 +582,11 @@ a {
   margin: 14px 0 6px;
 }
 
+.toolbar-group {
+  display: flex;
+  gap: 8px;
+}
+
 .nudge {
   display: flex;
   align-items: center;

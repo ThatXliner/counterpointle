@@ -167,6 +167,12 @@ export function Verifier({ initial, showFigures, sound, share, onBack }: Verifie
 
   const written = notes.filter((n) => n != null).length
   const cantusLeft = draft.cf.filter((s) => s == null).length
+  const blank = written === 0 && cantusLeft === draft.cf.length
+  const reset = () => {
+    if (!confirm('Erase every note in both voices?')) return
+    setSelected({ voice: 'cf', index: 0 })
+    update((d) => ({ ...d, cf: d.cf.map(() => null), cp: {} }))
+  }
   const selectedName =
     current == null ? '—' : selected!.voice === 'cf' ? pitchName(pitchIn(draft.key, current)) : pitchName(cpPitch(ctx, selected!.index, current))
   const lastBar = draft.cf.length - 1
@@ -299,9 +305,14 @@ export function Verifier({ initial, showFigures, sound, share, onBack }: Verifie
             ✕
           </button>
         </div>
-        <button className="ghost-btn" onClick={() => share(location.href)}>
-          Copy link
-        </button>
+        <div className="toolbar-group">
+          <button className="ghost-btn" onClick={reset} disabled={blank}>
+            Reset
+          </button>
+          <button className="ghost-btn" onClick={() => share(location.href)}>
+            Copy link
+          </button>
+        </div>
       </div>
       <p className="hint dim">
         Tap either staff to place a note, then drag it up or down.
