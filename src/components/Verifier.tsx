@@ -15,7 +15,7 @@ import {
 } from '../draft'
 import { analyze, cfPitch, cpPitch, floridOptions, floridTie, pitchIn, type Species } from '../music/exercise'
 import { SPECIES_IN, validate, type Rulebook } from '../music/rules'
-import { keyName, midi, MODES, pitchName } from '../music/theory'
+import { keyName, letterOf, midi, MODES, pitchName } from '../music/theory'
 import { saveSetting } from '../storage'
 import { markFor } from './Game'
 import { Segmented } from './Home'
@@ -112,6 +112,40 @@ export function Verifier({ initial, showFigures, sound, share, onBack }: Verifie
     write(Math.min(hi, Math.max(lo, start + delta)))
   }
 
+  /** The voice typed letters go to when nothing is selected: whichever staff was used last. */
+  const lastVoice = useRef<'cf' | 'cp'>('cf')
+  if (selected) lastVoice.current = selected.voice
+  /** The note a typed letter just placed, so an octave digit right after it lands on that note. */
+  const lastTyped = useRef<NonNullable<Selection> | null>(null)
+
+  const rangeOf = (voice: 'cf' | 'cp') => (voice === 'cf' ? cantusRange(draft.cpAbove) : ctx.range)
+  const lineOf = (voice: 'cf' | 'cp') => (voice === 'cf' ? draft.cf : notes)
+  const writeAt = (at: NonNullable<Selection>, step: number) => (at.voice === 'cf' ? setCantus(at.index, step) : setNote(at.index, step))
+
+  /** Places a letter at the octave nearest the note around it, then moves on to the next note of that voice. */
+  const typeLetter = (letter: number) => {
+    const line = lineOf(selected?.voice ?? lastVoice.current)
+    const at = selected ?? { voice: lastVoice.current, index: Math.max(0, line.findIndex((n) => n == null)) }
+    const [lo, hi] = rangeOf(at.voice)
+    const near = line[at.index] ?? line.slice(0, at.index).reverse().find((n) => n != null) ?? line.find((n) => n != null) ?? (lo + hi) / 2
+    const options = Array.from({ length: Math.floor((hi - lo) / 7) + 2 }, (_, k) => Math.floor(lo / 7) * 7 + letter + 7 * k).filter((s) => s >= lo && s <= hi)
+    if (!options.length) return
+    const step = options.reduce((best, s) => (Math.abs(s - near) < Math.abs(best - near) ? s : best))
+    writeAt(at, step)
+    lastTyped.current = at
+    setSelected({ ...at, index: Math.min(at.index + 1, line.length - 1) })
+  }
+
+  /** Moves the note just typed into the given octave, if that octave is in range. */
+  const typeOctave = (octave: number) => {
+    const at = lastTyped.current
+    const step = at && lineOf(at.voice)[at.index]
+    if (at == null || step == null) return
+    const [lo, hi] = rangeOf(at.voice)
+    const moved = octave * 7 + letterOf(step)
+    if (moved >= lo && moved <= hi) writeAt(at, moved)
+  }
+
   const moveSelection = (dir: 1 | -1) => {
     if (!selected) return setSelected({ voice: 'cf', index: 0 })
     const length = selected.voice === 'cf' ? draft.cf.length : notes.length
@@ -132,6 +166,10 @@ export function Verifier({ initial, showFigures, sound, share, onBack }: Verifie
       Delete: () => write(null),
       ' ': togglePlay,
     }
+    const letter = 'CDEFGAB'.indexOf(e.key.toUpperCase())
+    if (e.key.length === 1 && letter >= 0) actions[e.key] = () => typeLetter(letter)
+    if (/^[0-9]$/.test(e.key)) actions[e.key] = () => typeOctave(Number(e.key))
+    if (letter < 0 && !/^[0-9]$/.test(e.key)) lastTyped.current = null
     const action = actions[e.key]
     if (!action) return
     e.preventDefault()
@@ -250,6 +288,7 @@ export function Verifier({ initial, showFigures, sound, share, onBack }: Verifie
           highlight={highlight}
           playTime={playTime}
           onPick={(slot, step) => {
+            lastTyped.current = null
             setSelected({ voice: 'cp', index: slot })
             setNote(slot, step)
           }}
@@ -257,6 +296,7 @@ export function Verifier({ initial, showFigures, sound, share, onBack }: Verifie
             notes: draft.cf,
             selected: selected?.voice === 'cf' ? selected.index : null,
             onPick: (bar, step) => {
+              lastTyped.current = null
               setSelected({ voice: 'cf', index: bar })
               setCantus(bar, step)
             },
@@ -316,7 +356,7 @@ export function Verifier({ initial, showFigures, sound, share, onBack }: Verifie
       </div>
       <p className="hint dim">
         Tap either staff to place a note, then drag it up or down.
-        <span className="keys"> Keys: ← → choose, ↑ ↓ move, Space plays.</span>
+        <span className="keys"> Keys: type a note like A4, ← → choose, ↑ ↓ move, Space plays.</span>
       </p>
 
       <div className={`card result${cantusDone && written === notes.length && violations.length === 0 ? ' won' : ''}`} aria-live="polite">
