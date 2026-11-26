@@ -52,6 +52,8 @@ const BARS: Record<Species, readonly number[]> = {
   5: [7, 8],
 }
 const BLANK_SHARE = [0.3, 0.6]
+/** First day whose final note is never blanked. */
+const GIVEN_FINAL_FROM = '2026-11-26'
 
 /**
  * A cantus firmus: starts and ends on the final, approached from the step above, mostly stepwise.
@@ -214,8 +216,10 @@ export function makePuzzle(dateKey: string, species: Species, level: Level, vari
     // Successful searches finish almost immediately; a stuck one is cheaper to restart than to finish.
     for (let tries = 0; tries < 3 && !solution; tries++) solution = solve(ctx, rand)
     if (!solution) continue
-    const n = solution.length
-    const blanks = new Set(shuffle(rand, range(0, n - 1)).slice(0, Math.max(1, Math.round(n * BLANK_SHARE[level - 1]))))
+    // The final note is always given: it's a unison or octave with the cantus, so there would be nothing to solve.
+    // Earlier days keep their original blanks so replays and shared results still match.
+    const open = range(0, solution.length - (dateKey >= GIVEN_FINAL_FROM ? 2 : 1))
+    const blanks = new Set(shuffle(rand, open).slice(0, Math.max(1, Math.round(open.length * BLANK_SHARE[level - 1]))))
     const given = solution.map((s, i) => (blanks.has(i) ? null : s))
     return { key, species, level, exercise, given, solution }
   }
